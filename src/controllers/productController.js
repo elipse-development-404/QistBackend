@@ -372,6 +372,38 @@ const toggleProductField = async (req, res) => {
   }
 };
 
+const getProductById = async (req, res) => {
+  try {
+    const { id } = req.params;
 
+    const product = await prisma.product.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        ProductImage: true,
+        ProductInstallments: true,
+        categories: { select: { name: true } },
+        subcategories: { select: { name: true } },
+      },
+    });
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    // Flatten category/subcategory name if needed
+    const response = {
+      ...product,
+      category_name: product.category?.name || null,
+      subcategory_name: product.subcategory?.name || null,
+      category: undefined,
+      subcategory: undefined,
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Error fetching product:", error);
+    res.status(500).json({ message: "Internal server error", error: error.message });
+  }
+};
 
 module.exports = { createProduct, getAllProducts, getProductById, getProductByName,toggleProductField,updateProduct,getProductPagination }
