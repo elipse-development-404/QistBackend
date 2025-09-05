@@ -9,10 +9,13 @@ const {
   deleteSubcategory,
   toggleSubcategoryActive,
   getSubcategoriesByCategory,
+  getOnlyTrueSubCategories,
 } = require('../controllers/subcategoryController');
 
 
 router.get('/plain-subcategories/:id', getSubcategoriesByCategory);
+
+router.get('/subcategories/active', getOnlyTrueSubCategories );
 
 router.get(
   '/subcategories',

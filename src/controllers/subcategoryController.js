@@ -220,11 +220,24 @@ const toggleSubcategoryActive = async (req, res) => {
   }
 };
 
+const getOnlyTrueSubCategories = async (req, res) => {
+  try {
+    const categories = await prisma.subcategories.findMany({
+      where: { isActive: true },
+    });
+    res.status(200).json(categories);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to fetch categories" });
+  }
+};
+
 module.exports = {
   getSubcategories,
   createSubcategory,
   updateSubcategory,
   deleteSubcategory,
   toggleSubcategoryActive,
-  getSubcategoriesByCategory
+  getSubcategoriesByCategory,
+  getOnlyTrueSubCategories
 };
