@@ -8,56 +8,47 @@ datasource db {
 }
 
 model Product {
-  id                Int            @id @default(autoincrement())
-  category_id       Int?
-  subcategory_id    Int?
-  name              String
-  slugName          String?
-  brand             String?
-  status            Boolean @default(false)
-  short_description String?
-  long_description  String?        @db.Text
-  stock             Boolean      @default(true)
-  createdAt         DateTime?       @default(now())
-  updatedAt         DateTime ?       @default(now())
-  is_approved       Boolean @default(false) 
-  
-  
-  
-  ProductInstallments      ProductInstallments[]
-  deals                     DealProduct[]
-  categories        categories?    @relation(fields: [category_id], references: [id],onDelete:Cascade)
-  subcategories     subcategories? @relation(fields: [subcategory_id], references: [id],onDelete:Cascade)
-  
-  
+  id                  Int                   @id @default(autoincrement())
+  category_id         Int?
+  subcategory_id      Int?
+  name                String
+  brand               String?
+  short_description   String?
+  long_description    String?               @db.Text
+  stock               Boolean               @default(true)
+  createdAt           DateTime?             @default(now())
+  updatedAt           DateTime?             @default(now())
+  is_approved         Boolean               @default(false)
+  status              Boolean               @default(false)
+  slugName            String?
+  deals               DealProduct[]
+  categories          categories?           @relation(fields: [category_id], references: [id], onDelete: Cascade)
+  subcategories       subcategories?        @relation(fields: [subcategory_id], references: [id], onDelete: Cascade)
+  ProductImage        ProductImage[]
+  ProductInstallments ProductInstallments[]
+
   @@index([category_id], map: "Product_category_id_fkey")
   @@index([subcategory_id], map: "Product_subcategory_id_fkey")
-
-  ProductImage      ProductImage[]
 }
 
 model ProductImage {
   id         Int     @id @default(autoincrement())
   url        String
   product_id Int
-  Product    Product @relation(fields: [product_id], references: [id],onDelete:Cascade)
+  Product    Product @relation(fields: [product_id], references: [id], onDelete: Cascade)
 
   @@index([product_id], map: "ProductImage_product_id_fkey")
 }
 
-
-
-
 model ProductInstallments {
-  id         Int     @id @default(autoincrement())
-  totalPrice         Float
-  monthlyAmount      Float
-  advance            Float
-  months             Int
-  isActive           Boolean?        @default(true)
-  product_id Int
-  Product    Product @relation(fields: [product_id], references: [id],onDelete:Cascade)
-  
+  id            Int      @id @default(autoincrement())
+  product_id    Int
+  advance       Float
+  isActive      Boolean? @default(true)
+  monthlyAmount Float
+  months        Int
+  totalPrice    Float
+  Product       Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
 
   @@index([product_id], map: "ProductImage_product_id_fkey")
 }
@@ -74,49 +65,45 @@ model categories {
   id            Int             @id @default(autoincrement())
   name          String          @db.VarChar(255)
   description   String?         @db.Text
-  icon           String?         @db.Text
-   slugName          String?
   created_at    DateTime        @default(now()) @db.Timestamp(0)
   updated_at    DateTime        @default(now()) @db.Timestamp(0)
   isActive      Boolean?        @default(true)
+  icon          String?         @db.Text
+  slugName      String?
   Product       Product[]
   subcategories subcategories[]
-  
 }
 
 model subcategories {
   id          Int        @id @default(autoincrement())
   category_id Int
   name        String     @db.VarChar(255)
-  slugName          String?
   created_at  DateTime   @default(now()) @db.Timestamp(0)
   updated_at  DateTime   @default(now()) @db.Timestamp(0)
   isActive    Boolean?   @default(true)
   description String?    @db.Text
+  slugName    String?
   Product     Product[]
   categories  categories @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "subcategories_ibfk_1")
 
   @@index([category_id], map: "category_id")
 }
 
-
 model DealOfTheDay {
-  id         Int        @id @default(autoincrement())
-  title      String?    
-  startDate DateTime   @default(now())
+  id        Int           @id @default(autoincrement())
+  title     String?
+  startDate DateTime      @default(now())
   endDate   DateTime
-  isActive   Boolean    @default(true)
-
-  products   DealProduct[]
+  isActive  Boolean       @default(true)
+  products  DealProduct[]
 }
 
 model DealProduct {
-  id        Int      @id @default(autoincrement())
-  deal_id   Int
-  product_id Int
-  dealPrice Float?   // optional, custom price per product
-  discount   Float?   // optional, % discount per product
-
+  id           Int          @id @default(autoincrement())
+  deal_id      Int
+  product_id   Int
+  dealPrice    Float?
+  discount     Float?
   DealOfTheDay DealOfTheDay @relation(fields: [deal_id], references: [id], onDelete: Cascade)
   Product      Product      @relation(fields: [product_id], references: [id], onDelete: Cascade)
 
@@ -124,3 +111,22 @@ model DealProduct {
   @@index([product_id])
 }
 
+model CreateOrder {
+  id             Int       @id @default(autoincrement())
+  email          String    @db.VarChar(255)
+  phone          String    @db.VarChar(20)
+  firstName      String    @db.VarChar(100)
+  lastName       String    @db.VarChar(100)
+  cnic           String    @db.VarChar(13)
+  city           String    @db.VarChar(100)
+  area           String    @db.VarChar(100)
+  address        String    @db.Text
+  orderNotes     String?   @db.Text
+  paymentMethod  String    @db.VarChar(50)
+  productName    String    @db.VarChar(255)
+  totalDealValue Decimal   @db.Decimal(10, 2)
+  advanceAmount  Decimal   @db.Decimal(10, 2)
+  monthlyAmount  Decimal   @db.Decimal(10, 2)
+  months         Int
+  createdAt      DateTime? @default(now()) @db.Timestamp(0)
+}

@@ -6,6 +6,7 @@ const subcategoryRoutes = require('./routes/subcategoryRoutes');
 const productRoutes = require('./routes/productRoutes');
 const productInstallmentRoutes = require('./routes/productInstallmentRoutes');
 const dealRoutes = require('./routes/dealRoutes');
+const orderRoutes = require('./routes/orderRoutes');
 require('dotenv').config();
 
 const app = express();
@@ -24,6 +25,7 @@ app.use('/api', subcategoryRoutes);
 app.use('/api', productRoutes);
 app.use('/api', dealRoutes);
 app.use('/api', productInstallmentRoutes);
+app.use('/api', orderRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

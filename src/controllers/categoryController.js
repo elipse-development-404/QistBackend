@@ -93,7 +93,7 @@ const getOnlyTrueCategories = async (req, res) => {
       include: {
         subcategories: {
           where: { isActive: true },
-          select: { id: true, name: true },
+          select: { id: true, name: true, slugName: true },
         },
       },
     });
