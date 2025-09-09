@@ -2,9 +2,6 @@ const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient();
 
-
-
-
 const createProduct = async (req, res) => {
   try {
     let formattedData = {}
@@ -106,13 +103,15 @@ const getProductPagination = async (req, res) => {
     subcategory_id,
     minPrice,
     maxPrice,
-    sort = "name",
-    order = "asc",
+    sort = "createdAt", // Changed default sort to createdAt
+    order = "desc", // Changed default order to desc
   } = req.query;
   const offset = (page - 1) * limit;
 
   try {
-    const where = {};
+    const where = {
+      status: true, // Only fetch products with status: true
+    };
     if (subcategory_id) {
       where.subcategory_id = parseInt(subcategory_id);
     }
@@ -123,12 +122,13 @@ const getProductPagination = async (req, res) => {
             gte: parseFloat(minPrice),
             lte: parseFloat(maxPrice),
           },
+          isActive: true, // Only fetch active installments
         },
       };
     }
 
-    const validSortFields = ["name"];
-    const sortField = validSortFields.includes(sort) ? sort : "name";
+    const validSortFields = ["name", "createdAt"];
+    const sortField = validSortFields.includes(sort) ? sort : "createdAt";
     const sortOrder = order.toLowerCase() === "desc" ? "desc" : "asc";
 
     const products = await prisma.product.findMany({
@@ -141,6 +141,7 @@ const getProductPagination = async (req, res) => {
         subcategories: { select: { id: true, name: true } },
         ProductImage: true,
         ProductInstallments: {
+          where: { isActive: true }, // Only include active installments
           orderBy: { id: "desc" },
           take: 1,
         },
@@ -177,10 +178,15 @@ const getProductByName = async (req, res) => {
     const { name } = req.params;
 
     const product = await prisma.product.findFirst({
-      where: { slugName: String(name) },
+      where: {
+        slugName: String(name),
+        status: true, // Only fetch product with status: true
+      },
       include: {
         ProductImage: true,
-        ProductInstallments: true,
+        ProductInstallments: {
+          where: { isActive: true }, // Only include active installments
+        },
         categories: { select: { name: true } },
         subcategories: { select: { name: true } },
       },
@@ -190,13 +196,12 @@ const getProductByName = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    // Flatten category/subcategory name if needed
     const response = {
       ...product,
-      category_name: product.category?.name || null,
-      subcategory_name: product.subcategory?.name || null,
-      category: undefined,
-      subcategory: undefined,
+      category_name: product.categories?.name || null,
+      subcategory_name: product.subcategories?.name || null,
+      categories: undefined,
+      subcategories: undefined,
     };
 
     res.json(response);
@@ -372,40 +377,6 @@ const toggleProductField = async (req, res) => {
   }
 };
 
-const getProductById = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const product = await prisma.product.findUnique({
-      where: { id: parseInt(id) },
-      include: {
-        ProductImage: true,
-        ProductInstallments: true,
-        categories: { select: { name: true } },
-        subcategories: { select: { name: true } },
-      },
-    });
-
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
-    }
-
-    // Flatten category/subcategory name if needed
-    const response = {
-      ...product,
-      category_name: product.category?.name || null,
-      subcategory_name: product.subcategory?.name || null,
-      category: undefined,
-      subcategory: undefined,
-    };
-
-    res.json(response);
-  } catch (error) {
-    console.error("Error fetching product:", error);
-    res.status(500).json({ message: "Internal server error", error: error.message });
-  }
-};
-
 const getProductByCategorySlug = async (req, res) => {
   const { categorySlug } = req.params;
   const {
@@ -424,7 +395,9 @@ const getProductByCategorySlug = async (req, res) => {
       return res.status(500).json({ error: "Server configuration error: categories model not found" });
     }
 
-    const where = {};
+    const where = {
+      status: true, // Only fetch products with status: true
+    };
 
     if (categorySlug) {
       const category = await prisma.categories.findFirst({
@@ -449,6 +422,7 @@ const getProductByCategorySlug = async (req, res) => {
             gte: parseFloat(minPrice),
             lte: parseFloat(maxPrice),
           },
+          isActive: true, // Only fetch active installments
         },
       };
     }
@@ -467,6 +441,7 @@ const getProductByCategorySlug = async (req, res) => {
         subcategories: { select: { id: true, name: true } },
         ProductImage: true,
         ProductInstallments: {
+          where: { isActive: true }, // Only include active installments
           orderBy: { id: "desc" },
           take: 1,
         },
@@ -498,7 +473,7 @@ const getProductByCategorySlug = async (req, res) => {
 };
 
 const getProductByCategoryAndSubSlug = async (req, res) => {
-  const { categorySlug, subcategorySlug } = req.params; // Access both slugs from URL params
+  const { categorySlug, subcategorySlug } = req.params;
   const {
     page = 1,
     limit = 10,
@@ -510,19 +485,18 @@ const getProductByCategoryAndSubSlug = async (req, res) => {
   const offset = (page - 1) * limit;
 
   try {
-    // Validate Prisma client and models
     if (!prisma.categories || !prisma.subcategories) {
       console.error("Prisma 'categories' or 'subcategories' model is undefined. Check schema.prisma and Prisma client initialization.");
       return res.status(500).json({ error: "Server configuration error: categories or subcategories model not found" });
     }
 
-    const where = {};
+    const where = {
+      status: true, // Only fetch products with status: true
+    };
 
-    // Filter by category
     if (categorySlug) {
       const category = await prisma.categories.findFirst({
         where: {
-          // Try slugName first, fall back to name
           OR: [
             { slugName: { contains: String(categorySlug) } },
             { name: { contains: String(categorySlug) } },
@@ -543,11 +517,9 @@ const getProductByCategoryAndSubSlug = async (req, res) => {
       return res.status(400).json({ error: "Category slug is required" });
     }
 
-    // Filter by subcategory (if provided)
     if (subcategorySlug) {
       const subcategory = await prisma.subcategories.findFirst({
         where: {
-          // Try slugName first, fall back to name
           OR: [
             { slugName: { contains: String(subcategorySlug) } },
             { name: { contains: String(subcategorySlug) } },
@@ -565,7 +537,6 @@ const getProductByCategoryAndSubSlug = async (req, res) => {
       where.subcategory_id = subcategory.id;
     }
 
-    // Apply price filters if provided
     if (minPrice !== undefined && maxPrice !== undefined) {
       where.ProductInstallments = {
         some: {
@@ -573,16 +544,15 @@ const getProductByCategoryAndSubSlug = async (req, res) => {
             gte: parseFloat(minPrice),
             lte: parseFloat(maxPrice),
           },
+          isActive: true, // Only fetch active installments
         },
       };
     }
 
-    // Validate sorting fields
     const validSortFields = ["name"];
     const sortField = validSortFields.includes(sort) ? sort : "name";
     const sortOrder = order.toLowerCase() === "desc" ? "desc" : "asc";
 
-    // Fetch products with pagination, sorting, and includes
     const products = await prisma.product.findMany({
       where,
       skip: Number(offset),
@@ -593,6 +563,7 @@ const getProductByCategoryAndSubSlug = async (req, res) => {
         subcategories: { select: { id: true, name: true } },
         ProductImage: true,
         ProductInstallments: {
+          where: { isActive: true }, // Only include active installments
           orderBy: { id: "desc" },
           take: 1,
         },
@@ -601,7 +572,6 @@ const getProductByCategoryAndSubSlug = async (req, res) => {
 
     console.log(`Found ${products.length} products for categorySlug: ${categorySlug}${subcategorySlug ? `, subcategorySlug: ${subcategorySlug}` : ''}`);
 
-    // Map response to include category and subcategory names
     const response = products.map((p) => ({
       ...p,
       category_name: p.categories?.name || null,
@@ -609,7 +579,6 @@ const getProductByCategoryAndSubSlug = async (req, res) => {
       advance: p.ProductInstallments[0]?.advance || 0,
     }));
 
-    // Count total items for pagination
     const totalItems = await prisma.product.count({ where });
 
     res.status(200).json({
@@ -627,4 +596,45 @@ const getProductByCategoryAndSubSlug = async (req, res) => {
   }
 };
 
-module.exports = { createProduct, getAllProducts, getProductById, getProductByName,toggleProductField,updateProduct,getProductPagination,getProductByCategorySlug,getProductByCategoryAndSubSlug }
+const getLatestProducts = async (req, res) => {
+  try {
+    const products = await prisma.product.findMany({
+      where: {
+        status: true, // Already present, kept for clarity
+      },
+      take: 10,
+      orderBy: { id: "desc" },
+      include: {
+        ProductImage: {
+          take: 1,
+          orderBy: { id: "asc" },
+        },
+        ProductInstallments: {
+          where: { isActive: true }, // Only include active installments
+          orderBy: { id: "desc" },
+          take: 1,
+        },
+        categories: { select: { name: true } },
+        subcategories: { select: { name: true } },
+      },
+    });
+
+    const response = products.map((p) => ({
+      id: p.id,
+      name: p.name,
+      slugName: p.slugName,
+      category_name: p.categories?.name || null,
+      subcategory_name: p.subcategories?.name || null,
+      advance: p.ProductInstallments[0]?.advance || 0,
+      image_url: p.ProductImage[0]?.url || null,
+      ProductInstallments: p.ProductInstallments,
+    }));
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error("Error fetching latest products:", error);
+    res.status(500).json({ message: "Internal server error", error: error.message });
+  }
+};
+
+module.exports = { createProduct, getAllProducts, getProductByName,toggleProductField,updateProduct,getProductPagination,getProductByCategorySlug,getProductByCategoryAndSubSlug,getLatestProducts }

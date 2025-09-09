@@ -1,12 +1,11 @@
-const { createDealOfTheDay, getDealOfTheDayByDate, getAllDealOfTheDay } = require('../controllers/dealOfTheDayController');
-const upload = require('../middlewares/uploadMiddleware');
 const express = require('express');
 const router = express.Router();
+const { createDeal, getAllDeals, updateDeal, toggleDeal, deleteDeal } = require('../controllers/dealController');
 
-
-router.post('/deal-of-the-day', createDealOfTheDay);
-router.get('/deal-of-the-day', getAllDealOfTheDay);
-router.get('/deal-of-the-day/:date', getDealOfTheDayByDate);
-
+router.post('/create-deal', createDeal);
+router.get('/deal', getAllDeals);
+router.put('/deal/:id', updateDeal);
+router.patch('/deal/:id/toggle', toggleDeal);
+router.delete('/deal/:id', deleteDeal);
 
 module.exports = router;

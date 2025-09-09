@@ -21,11 +21,11 @@ model Product {
   is_approved         Boolean               @default(false)
   status              Boolean               @default(false)
   slugName            String?
-  deals               DealProduct[]
   categories          categories?           @relation(fields: [category_id], references: [id], onDelete: Cascade)
   subcategories       subcategories?        @relation(fields: [subcategory_id], references: [id], onDelete: Cascade)
   ProductImage        ProductImage[]
   ProductInstallments ProductInstallments[]
+  Deals               Deal[]                @relation("ProductToDeal")
 
   @@index([category_id], map: "Product_category_id_fkey")
   @@index([subcategory_id], map: "Product_subcategory_id_fkey")
@@ -48,9 +48,12 @@ model ProductInstallments {
   monthlyAmount Float
   months        Int
   totalPrice    Float
+  dealId        Int?
   Product       Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  Deal          Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
 
-  @@index([product_id], map: "ProductImage_product_id_fkey")
+  @@index([product_id], map: "ProductInstallments_product_id_fkey")
+  @@index([dealId], map: "ProductInstallments_dealId_fkey")
 }
 
 model admins {
@@ -89,28 +92,6 @@ model subcategories {
   @@index([category_id], map: "category_id")
 }
 
-model DealOfTheDay {
-  id        Int           @id @default(autoincrement())
-  title     String?
-  startDate DateTime      @default(now())
-  endDate   DateTime
-  isActive  Boolean       @default(true)
-  products  DealProduct[]
-}
-
-model DealProduct {
-  id           Int          @id @default(autoincrement())
-  deal_id      Int
-  product_id   Int
-  dealPrice    Float?
-  discount     Float?
-  DealOfTheDay DealOfTheDay @relation(fields: [deal_id], references: [id], onDelete: Cascade)
-  Product      Product      @relation(fields: [product_id], references: [id], onDelete: Cascade)
-
-  @@index([deal_id])
-  @@index([product_id])
-}
-
 model CreateOrder {
   id             Int       @id @default(autoincrement())
   email          String    @db.VarChar(255)
@@ -129,4 +110,45 @@ model CreateOrder {
   monthlyAmount  Decimal   @db.Decimal(10, 2)
   months         Int
   createdAt      DateTime? @default(now()) @db.Timestamp(0)
+}
+
+model Banner {
+  id            Int      @id @default(autoincrement())
+  image_url     String?
+  cloudinary_id String?
+  product_url   String
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Deal {
+  id                  Int                   @id @default(autoincrement())
+  name                String
+  startDate           DateTime
+  endDate             DateTime
+  isActive            Boolean               @default(true)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  productId           Int
+  Product             Product               @relation("ProductToDeal", fields: [productId], references: [id], onDelete: Cascade)
+  DealInstallments    DealInstallments[]
+  ProductInstallments ProductInstallments[]
+
+  @@index([productId], map: "Deal_productId_fkey")
+}
+
+model DealInstallments {
+  id            Int      @id @default(autoincrement())
+  dealId        Int
+  totalPrice    Float
+  monthlyAmount Float
+  advance       Float
+  months        Int
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  Deal          Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([dealId], map: "DealInstallments_dealId_fkey")
 }

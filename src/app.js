@@ -7,6 +7,7 @@ const productRoutes = require('./routes/productRoutes');
 const productInstallmentRoutes = require('./routes/productInstallmentRoutes');
 const dealRoutes = require('./routes/dealRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const bannerRoutes = require('./routes/bannerRoutes');
 require('dotenv').config();
 
 const app = express();
@@ -26,6 +27,7 @@ app.use('/api', productRoutes);
 app.use('/api', dealRoutes);
 app.use('/api', productInstallmentRoutes);
 app.use('/api', orderRoutes);
+app.use('/api', bannerRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
