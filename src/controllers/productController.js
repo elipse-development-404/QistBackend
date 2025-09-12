@@ -1,4 +1,5 @@
 const { PrismaClient } = require("@prisma/client");
+const { validationResult } = require('express-validator');
 
 const prisma = new PrismaClient();
 
@@ -103,8 +104,8 @@ const getProductPagination = async (req, res) => {
     subcategory_id,
     minPrice,
     maxPrice,
-    sort = "createdAt", // Changed default sort to createdAt
-    order = "desc", // Changed default order to desc
+    sort = "createdAt",
+    order = "desc",
   } = req.query;
   const offset = (page - 1) * limit;
 
@@ -122,7 +123,7 @@ const getProductPagination = async (req, res) => {
             gte: parseFloat(minPrice),
             lte: parseFloat(maxPrice),
           },
-          isActive: true, // Only fetch active installments
+          isActive: true,
         },
       };
     }
@@ -141,7 +142,7 @@ const getProductPagination = async (req, res) => {
         subcategories: { select: { id: true, name: true } },
         ProductImage: true,
         ProductInstallments: {
-          where: { isActive: true }, // Only include active installments
+          where: { isActive: true },
           orderBy: { id: "desc" },
           take: 1,
         },
@@ -153,6 +154,7 @@ const getProductPagination = async (req, res) => {
       category_name: p.categories?.name,
       subcategory_name: p.subcategories?.name,
       advance: p.ProductInstallments[0]?.advance || 0,
+      isDeal: p.isDeal,
     }));
 
     const totalItems = await prisma.product.count({ where });
@@ -200,6 +202,7 @@ const getProductByName = async (req, res) => {
       ...product,
       category_name: product.categories?.name || null,
       subcategory_name: product.subcategories?.name || null,
+      isDeal: product.isDeal,
       categories: undefined,
       subcategories: undefined,
     };
@@ -211,10 +214,138 @@ const getProductByName = async (req, res) => {
   }
 };
 
+const getAllProductsPagination = async (req, res) => {
+  const {
+    page = 1,
+    limit = 10,
+    search = '',
+    status = 'all',
+    sort = 'name',
+    order = 'desc',
+  } = req.query;
+  const offset = (page - 1) * limit;
+
+  try {
+    // Input validation
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    // Filters
+    const where = {};
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+        { id: isNaN(search) ? undefined : Number(search) },
+      ].filter(Boolean);
+    }
+    if (status === 'active') where.isActive = true;
+    if (status === 'inactive') where.isActive = false;
+
+    // Sorting
+    const validSortFields = ['id', 'name', 'price', 'isActive'];
+    const sortField = validSortFields.includes(sort) ? sort : 'name';
+    const sortOrder = order.toLowerCase() === 'desc' ? 'desc' : 'asc';
+
+    // Fetch products
+    const products = await prisma.product.findMany({
+      where,
+      skip: Number(offset),
+      take: Number(limit),
+      orderBy: { [sortField]: sortOrder },
+      include: {
+        ProductImage: true,
+        ProductInstallments: true,
+        categories: { select: { name: true } },
+        subcategories: { select: { name: true } },
+      },
+    });
+
+    // Count total
+    const totalItems = await prisma.product.count({ where });
+
+    // Transform response
+    const response = products.map(p => ({
+      ...p,
+      category_name: p.categories?.name || null,
+      subcategory_name: p.subcategories?.name || null,
+      isDeal: p.isDeal,
+      categories: undefined,
+      subcategories: undefined,
+    }));
+
+    res.status(200).json({
+      data: response,
+      pagination: {
+        totalItems,
+        totalPages: Math.ceil(totalItems / limit),
+        currentPage: Number(page),
+        limit: Number(limit),
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching products:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
+const getProductById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validate ID
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ message: "Valid product ID is required" });
+    }
+
+    const product = await prisma.product.findUnique({
+      where: {
+        id: parseInt(id),
+        status: true, // Only fetch product with status: true
+      },
+      include: {
+        ProductImage: true,
+        ProductInstallments: {
+          where: { isActive: true }, // Include all active installments
+          orderBy: { id: "desc" }, // Sort by ID in descending order
+        },
+        categories: { select: { id: true, name: true } },
+        subcategories: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    const response = {
+      ...product,
+      category_name: product.categories?.name || null,
+      subcategory_name: product.subcategories?.name || null,
+      isDeal: product.isDeal,
+      categories: undefined,
+      subcategories: undefined,
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error("Error fetching product by ID:", error);
+    res.status(500).json({ message: "Internal server error", error: error.message });
+  }
+};
+
 // ---------- Get All Products ----------
 const getAllProducts = async (req, res) => {
   try {
     const products = await prisma.product.findMany({
+      where: {
+        status: true, // Only fetch products with status: true
+      },
+      orderBy: {
+        createdAt: 'desc', // Sort by creation date, latest first
+      },
       include: {
         ProductImage: true,
         ProductInstallments: true,
@@ -225,13 +356,14 @@ const getAllProducts = async (req, res) => {
 
     const response = products.map(p => ({
       ...p,
-      category_name: p.category?.name || null,
-      subcategory_name: p.subcategory?.name || null,
-      category: undefined,
-      subcategory: undefined,
+      category_name: p.categories?.name || null,
+      subcategory_name: p.subcategories?.name || null,
+      isDeal: p.isDeal,
+      categories: undefined,
+      subcategories: undefined,
     }));
 
-    res.json(response);
+    res.status(200).json(response);
   } catch (error) {
     console.error("Error fetching products:", error);
     res.status(500).json({ message: "Internal server error", error: error.message });
@@ -453,6 +585,7 @@ const getProductByCategorySlug = async (req, res) => {
       category_name: p.categories?.name || null,
       subcategory_name: p.subcategories?.name || null,
       advance: p.ProductInstallments[0]?.advance || 0,
+      isDeal: p.isDeal,
     }));
 
     const totalItems = await prisma.product.count({ where });
@@ -577,6 +710,7 @@ const getProductByCategoryAndSubSlug = async (req, res) => {
       category_name: p.categories?.name || null,
       subcategory_name: p.subcategories?.name || null,
       advance: p.ProductInstallments[0]?.advance || 0,
+      isDeal: p.isDeal,
     }));
 
     const totalItems = await prisma.product.count({ where });
@@ -628,6 +762,7 @@ const getLatestProducts = async (req, res) => {
       advance: p.ProductInstallments[0]?.advance || 0,
       image_url: p.ProductImage[0]?.url || null,
       ProductInstallments: p.ProductInstallments,
+      isDeal: p.isDeal,
     }));
 
     res.status(200).json(response);
@@ -637,4 +772,4 @@ const getLatestProducts = async (req, res) => {
   }
 };
 
-module.exports = { createProduct, getAllProducts, getProductByName,toggleProductField,updateProduct,getProductPagination,getProductByCategorySlug,getProductByCategoryAndSubSlug,getLatestProducts }
+module.exports = { createProduct, getAllProducts, getProductByName,toggleProductField,updateProduct,getProductPagination,getProductByCategorySlug,getProductByCategoryAndSubSlug,getLatestProducts,getAllProductsPagination, getProductById }

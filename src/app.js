@@ -8,6 +8,7 @@ const productInstallmentRoutes = require('./routes/productInstallmentRoutes');
 const dealRoutes = require('./routes/dealRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const bannerRoutes = require('./routes/bannerRoutes');
+const productDealRoutes = require('./routes/productDealRoutes');
 require('dotenv').config();
 
 const app = express();
@@ -25,6 +26,7 @@ app.use('/api', categoryRoutes);
 app.use('/api', subcategoryRoutes);
 app.use('/api', productRoutes);
 app.use('/api', dealRoutes);
+app.use('/api', productDealRoutes);
 app.use('/api', productInstallmentRoutes);
 app.use('/api', orderRoutes);
 app.use('/api', bannerRoutes);

@@ -12,7 +12,7 @@ const getBanners = async (req, res) => {
     search = '',
     status = 'all',
     sort = 'id',
-    order = 'asc',
+    order = 'desc',
   } = req.query;
   const skip = (page - 1) * limit;
   const take = Number(limit);

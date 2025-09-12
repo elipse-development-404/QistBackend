@@ -104,6 +104,25 @@ const getOnlyTrueCategories = async (req, res) => {
   }
 };
 
+const getLimitOnlyTrueCategories = async (req, res) => {
+  try {
+    const categories = await prisma.categories.findMany({
+      where: { isActive: true },
+      take: 10, // Limits the result to 10 categories
+      include: {
+        subcategories: {
+          where: { isActive: true },
+          select: { id: true, name: true, slugName: true },
+        },
+      },
+    });
+    res.status(200).json(categories);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to fetch categories" });
+  }
+};
+
 const createCategory = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -198,5 +217,6 @@ module.exports = {
   updateCategory,
   deleteCategory,
   toggleCategoryActive,
-  getAllPlainCategory
+  getAllPlainCategory,
+  getLimitOnlyTrueCategories
 };

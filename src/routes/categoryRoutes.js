@@ -11,6 +11,7 @@ const {
   deleteCategory,
   toggleCategoryActive,
   getAllPlainCategory,
+  getLimitOnlyTrueCategories,
 } = require('../controllers/categoryController');
 
 router.get(
@@ -28,6 +29,7 @@ router.get(
 );
 
 router.get('/categories', getOnlyTrueCategories);
+router.get('/limit/categories', getLimitOnlyTrueCategories);
 router.get('/plain-categories', getAllPlainCategory);
 
 router.post(
