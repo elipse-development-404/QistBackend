@@ -190,7 +190,7 @@ const getProductByName = async (req, res) => {
           where: { isActive: true }, // Only include active installments
         },
         categories: { select: { name: true } },
-        subcategories: { select: { name: true } },
+        subcategories: { select: { name: true, slugName: true } },
       },
     });
 
@@ -202,6 +202,7 @@ const getProductByName = async (req, res) => {
       ...product,
       category_name: product.categories?.name || null,
       subcategory_name: product.subcategories?.name || null,
+      subcategory_slug_name: product.subcategories?.slugName || null,
       isDeal: product.isDeal,
       categories: undefined,
       subcategories: undefined,
@@ -523,7 +524,6 @@ const getProductByCategorySlug = async (req, res) => {
 
   try {
     if (!prisma.categories) {
-      console.error("Prisma 'categories' model is undefined. Check schema.prisma and Prisma client initialization.");
       return res.status(500).json({ error: "Server configuration error: categories model not found" });
     }
 
@@ -772,4 +772,229 @@ const getLatestProducts = async (req, res) => {
   }
 };
 
-module.exports = { createProduct, getAllProducts, getProductByName,toggleProductField,updateProduct,getProductPagination,getProductByCategorySlug,getProductByCategoryAndSubSlug,getLatestProducts,getAllProductsPagination, getProductById }
+const getProductSearch = async (req, res) => {
+  const { search, category, subcategory, page = 1, limit = 10, minPrice, maxPrice, sort = "name", order = "asc" } = req.query;
+  const offset = (page - 1) * limit;
+
+  try {
+    const where = { status: true };
+
+    // Handle search term
+    if (search) {
+      const lowerSearch = search.toLowerCase().trim();
+
+      // Check if search term matches a subcategory name or slug (case-insensitive)
+      const subcategoryMatch = await prisma.subcategories.findFirst({
+        where: {
+          OR: [
+            {
+              name: {
+                equals: lowerSearch, // Exact case-insensitive match (manual handling)
+              },
+            },
+            {
+              slugName: {
+                equals: lowerSearch, // Exact case-insensitive match (manual handling)
+              },
+            },
+          ],
+        },
+        select: { id: true },
+      });
+
+      if (subcategoryMatch) {
+        // If search term matches a subcategory exactly, filter by subcategory_id
+        where.subcategory_id = subcategoryMatch.id;
+      } else {
+        // Otherwise, search in product name and description (case-insensitive)
+        where.OR = [
+          {
+            name: {
+              contains: lowerSearch,
+            },
+          },
+          {
+            short_description: {
+              contains: lowerSearch,
+            },
+          },
+          {
+            long_description: {
+              contains: lowerSearch,
+            },
+          },
+        ];
+      }
+    }
+
+    // Handle category filter
+    if (category) {
+      const cat = await prisma.categories.findFirst({
+        where: { slugName: category.toLowerCase().trim() }, // Case-insensitive slug matching
+        select: { id: true },
+      });
+      if (cat) {
+        where.category_id = cat.id;
+      } else {
+        return res.status(404).json({ error: "Category not found" });
+      }
+    }
+
+    // Handle subcategory filter
+    if (subcategory) {
+      const sub = await prisma.subcategories.findFirst({
+        where: { slugName: subcategory.toLowerCase().trim() }, // Case-insensitive slug matching
+        select: { id: true },
+      });
+      if (sub) {
+        where.subcategory_id = sub.id;
+      } else {
+        return res.status(404).json({ error: "Subcategory not found" });
+      }
+    }
+
+    // Handle price range filter
+    if (minPrice !== undefined && maxPrice !== undefined) {
+      where.ProductInstallments = {
+        some: {
+          advance: {
+            gte: parseFloat(minPrice),
+            lte: parseFloat(maxPrice),
+          },
+          isActive: true,
+        },
+      };
+    }
+
+    // Validate sorting fields
+    const validSortFields = ["name", "createdAt"];
+    const sortField = validSortFields.includes(sort) ? sort : "name";
+    const sortOrder = order.toLowerCase() === "desc" ? "desc" : "asc";
+
+    // Fetch products
+    const products = await prisma.product.findMany({
+      where,
+      skip: Number(offset),
+      take: Number(limit),
+      orderBy: { [sortField]: sortOrder },
+      include: {
+        categories: { select: { id: true, name: true } },
+        subcategories: { select: { id: true, name: true } },
+        ProductImage: {
+          take: 1, // Limit to one image per product
+          orderBy: { id: "asc" },
+        },
+        ProductInstallments: {
+          where: { isActive: true },
+          orderBy: { id: "desc" },
+          take: 1, // Limit to one installment plan
+        },
+      },
+    });
+
+    // Transform response
+    const response = products.map((p) => ({
+      id: p.id,
+      name: p.name,
+      slugName: p.slugName,
+      category_name: p.categories?.name || null,
+      subcategory_name: p.subcategories?.name || null,
+      advance: p.ProductInstallments[0]?.advance || 0,
+      image_url: p.ProductImage[0]?.url || null,
+      short_description: p.short_description,
+      stock: p.stock,
+      isDeal: p.isDeal,
+    }));
+
+    // Count total items
+    const totalItems = await prisma.product.count({ where });
+
+    res.status(200).json({
+      data: response,
+      pagination: {
+        totalItems,
+        totalPages: Math.ceil(totalItems / limit),
+        currentPage: Number(page),
+        limit: Number(limit),
+      },
+    });
+  } catch (error) {
+    console.error("Error in product search:", error);
+    res.status(500).json({ error: "Failed to search products", details: error.message });
+  }
+};
+
+const getProductBySubcategorySlugSimple = async (req, res) => {
+  const { subcategorySlug } = req.params;
+
+  try {
+    // Check if the subcategories model exists in Prisma
+    if (!prisma.subcategories) {
+      return res.status(500).json({ error: "Server configuration error: subcategories model not found" });
+    }
+
+    // Define the where clause for products with status: true
+    const where = {
+      status: true,
+    };
+
+    // Find subcategory by slug
+    if (subcategorySlug) {
+      const subcategory = await prisma.subcategories.findFirst({
+        where: {
+          OR: [
+            { slugName: { contains: String(subcategorySlug) } },
+            { name: { contains: String(subcategorySlug) } },
+          ],
+        },
+        select: { id: true, name: true },
+      });
+
+      if (!subcategory) {
+        return res.status(404).json({ error: "Subcategory not found" });
+      }
+      where.subcategory_id = subcategory.id;
+    } else {
+      return res.status(400).json({ error: "Subcategory slug is required" });
+    }
+
+    // Fetch exactly 10 products, ordered by id in descending order (latest first)
+    const products = await prisma.product.findMany({
+      where,
+      take: 20,
+      orderBy: { id: "desc" },
+      include: {
+        categories: { select: { id: true, name: true } },
+        subcategories: { select: { id: true, name: true } },
+        ProductImage: {
+          take: 1, // Limit to one image per product
+          orderBy: { id: "asc" },
+        },
+        ProductInstallments: {
+          where: { isActive: true }, // Only include active installments
+          orderBy: { id: "desc" }, // Latest installment first
+          take: 1, // Limit to one installment
+        },
+      },
+    });
+
+    // Transform response
+    const response = products.map((p) => ({
+      id: p.id,
+      name: p.name,
+      slugName: p.slugName,
+      category_name: p.categories?.name || null,
+      subcategory_name: p.subcategories?.name || null,
+      advance: p.ProductInstallments[0]?.advance || 0,
+      image_url: p.ProductImage[0]?.url || null,
+      isDeal: p.isDeal,
+    }));
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error("Error fetching products by subcategory slug:", error);
+    res.status(500).json({ error: "Failed to fetch products", details: error.message });
+  }
+};
+
+module.exports = { createProduct, getAllProducts, getProductByName,toggleProductField,updateProduct,getProductPagination,getProductByCategorySlug,getProductByCategoryAndSubSlug,getLatestProducts,getAllProductsPagination, getProductById, getProductSearch, getProductBySubcategorySlugSimple }

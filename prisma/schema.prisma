@@ -21,7 +21,7 @@ model Product {
   is_approved         Boolean               @default(false)
   status              Boolean               @default(false)
   slugName            String?
-  isDeal              Boolean               @default(false) // New field
+  isDeal              Boolean               @default(false)
   categories          categories?           @relation(fields: [category_id], references: [id], onDelete: Cascade)
   subcategories       subcategories?        @relation(fields: [subcategory_id], references: [id], onDelete: Cascade)
   ProductImage        ProductImage[]
@@ -76,6 +76,7 @@ model categories {
   slugName      String?
   Product       Product[]
   subcategories subcategories[]
+  TopCategory   TopCategory[]
 }
 
 model subcategories {
@@ -163,4 +164,17 @@ model DealInstallments {
   ProductDeal     ProductDeal @relation(fields: [productDealId], references: [id], onDelete: Cascade)
 
   @@index([productDealId])
+}
+
+model TopCategory {
+  id            Int         @id @default(autoincrement())
+  category_id   Int
+  image_url     String
+  cloudinary_id String?
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  categories    categories  @relation(fields: [category_id], references: [id], onDelete: Cascade)
+
+  @@index([category_id], map: "TopCategory_category_id_fkey")
 }
