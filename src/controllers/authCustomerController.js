@@ -42,14 +42,22 @@ const sendVerificationEmail = async (email, code) => {
 };
 
 const signup = async (req, res) => {
-  const { firstName, lastName, email, phone, password, confirmPassword } = req.body;
+  const { firstName, lastName, email, cnic, phone, password, confirmPassword } = req.body;
 
-  if (!firstName || !lastName || !email || !phone || !password || !confirmPassword) {
+  if (!firstName || !lastName || !email || !cnic || !phone || !password || !confirmPassword) {
     return res.status(400).json({ error: 'All fields are required' });
   }
 
   if (!isValidEmail(email)) {
     return res.status(400).json({ error: 'Invalid email format' });
+  }
+
+  if (!/^\d{13}$/.test(cnic)) {
+    return res.status(400).json({ error: 'Invalid CNIC format. Must be a 13-digit number' });
+  }
+
+  if (!/^\+?\d{11}$/.test(phone)) {
+    return res.status(400).json({ error: 'Invalid phone number format' });
   }
 
   if (password !== confirmPassword) {
@@ -61,9 +69,26 @@ const signup = async (req, res) => {
   }
 
   try {
-    const existingCustomer = await prisma.customers.findUnique({ where: { email } });
+    const existingCustomer = await prisma.customers.findFirst({
+      where: {
+        OR: [
+          { email },
+          { phone },
+          { cnic },
+        ],
+      },
+    });
+
     if (existingCustomer) {
-      return res.status(400).json({ error: 'Customer already exists' });
+      if (existingCustomer.email === email) {
+        return res.status(400).json({ error: 'Email is already in use' });
+      }
+      if (existingCustomer.phone === phone) {
+        return res.status(400).json({ error: 'Phone number is already in use' });
+      }
+      if (existingCustomer.cnic === cnic) {
+        return res.status(400).json({ error: 'CNIC is already in use' });
+      }
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -73,13 +98,13 @@ const signup = async (req, res) => {
         firstName,
         lastName,
         email,
+        cnic,
         phone,
         password: hashedPassword,
         createdAt: new Date(),
       },
     });
 
-    // Link existing guest orders by email
     const existingOrders = await prisma.createOrder.findMany({
       where: { email, customerId: null },
     });
@@ -241,12 +266,12 @@ const login = async (req, res) => {
 
     const expiry = rememberMe ? '30d' : '7d';
     const token = jwt.sign(
-      { customerId: customer.id, email: customer.email },
+      { customerId: customer.id, email: customer.email, firstName: customer.firstName, lastName: customer.lastName, phone: customer.phone, cnic: customer.cnic },
       JWT_SECRET,
       { expiresIn: expiry }
     );
 
-    res.json({ token, customer: { firstName: customer.firstName, lastName: customer.lastName, email: customer.email } });
+    res.json({ token, customer: { firstName: customer.firstName, lastName: customer.lastName, email: customer.email, phone: customer.phone, cnic: customer.cnic } });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Internal server error' });

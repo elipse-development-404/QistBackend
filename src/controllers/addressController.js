@@ -13,7 +13,7 @@ const getAddresses = async (req, res) => {
 };
 
 const addAddress = async (req, res) => {
-  const { firstName, lastName, company, address1, city, region, zipCode, phone, isDefault } = req.body;
+  const { cnic, address1, city, area, isDefault } = req.body;
   try {
     if (isDefault) {
       await prisma.address.updateMany({
@@ -24,14 +24,10 @@ const addAddress = async (req, res) => {
     const address = await prisma.address.create({
       data: {
         customerId: req.customer.customerId,
-        firstName,
-        lastName,
-        company,
+        cnic,
         address1,
         city,
-        region,
-        zipCode,
-        phone,
+        area,
         isDefault,
       },
     });
@@ -43,7 +39,7 @@ const addAddress = async (req, res) => {
 
 const updateAddress = async (req, res) => {
   const { id } = req.params;
-  const { firstName, lastName, company, address1, city, region, zipCode, phone, isDefault } = req.body;
+  const { cnic, address1, city, area, isDefault } = req.body;
   try {
     if (isDefault) {
       await prisma.address.updateMany({
@@ -53,7 +49,7 @@ const updateAddress = async (req, res) => {
     }
     const address = await prisma.address.update({
       where: { id: parseInt(id) },
-      data: { firstName, lastName, company, address1, city, region, zipCode, phone, isDefault },
+      data: { cnic, address1, city, area, isDefault },
     });
     res.json(address);
   } catch (error) {

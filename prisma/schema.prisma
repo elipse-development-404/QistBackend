@@ -72,6 +72,7 @@ model Customers {
   firstName   String?
   lastName    String?
   phone       String?
+  cnic        String?              @db.VarChar(13)
   isVerified  Boolean              @default(false)
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
@@ -163,14 +164,9 @@ enum OrderStatus {
 model Address {
   id         Int       @id @default(autoincrement())
   customerId Int
-  firstName  String
-  lastName   String
-  company    String?
   address1   String
   city       String
-  region     String
-  zipCode    String
-  phone      String
+  area       String
   isDefault  Boolean   @default(false)
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt

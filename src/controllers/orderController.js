@@ -48,8 +48,8 @@ const createOrders = async (req, res) => {
 
     // If authenticated, set customerId
     let customerId = null;
-    if (req.customer) {
-      customerId = req.customer.customerId;
+    if (data.customerID) {
+      customerId = data.customerID;
     }
 
     const newOrder = await prisma.createOrder.create({
