@@ -6,7 +6,7 @@ const createOrders = async (req, res) => {
   try {
     const data = req.body;
 
-    // Validate required fields
+    // Validate required fields (unchanged)
     const requiredFields = [
       'email',
       'phone',
@@ -46,9 +46,15 @@ const createOrders = async (req, res) => {
       return res.status(400).json({ error: 'months must be a non-negative integer' });
     }
 
-    // Create the order in the database
+    // If authenticated, set customerId
+    let customerId = null;
+    if (req.customer) {
+      customerId = req.customer.customerId;
+    }
+
     const newOrder = await prisma.createOrder.create({
       data: {
+        customerId,
         email: data.email,
         phone: data.phone,
         firstName: data.firstName,
@@ -72,18 +78,6 @@ const createOrders = async (req, res) => {
     console.error('Error creating order:', error);
     res.status(500).json({ error: 'Failed to create order', details: error.message });
   }
-};
+}
 
-const getOrders = async (req, res) => {
-  try {
-    const orders = await prisma.createOrder.findMany({
-      orderBy: { createdAt: 'desc' },
-    });
-    res.status(200).json(orders);
-  } catch (error) {
-    console.error('Error fetching orders:', error);
-    res.status(500).json({ error: 'Failed to fetch orders', details: error.message });
-  }
-};
-
-module.exports = { createOrders, getOrders };
+module.exports = { createOrders };

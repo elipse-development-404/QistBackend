@@ -10,6 +10,7 @@ const orderRoutes = require('./routes/orderRoutes');
 const bannerRoutes = require('./routes/bannerRoutes');
 const productDealRoutes = require('./routes/productDealRoutes');
 const topCategoryRoutes = require('./routes/topCategoryRoutes');
+const authCustomer = require('./routes/authCustomer');
 require('dotenv').config();
 
 const app = express();
@@ -32,6 +33,7 @@ app.use('/api', productInstallmentRoutes);
 app.use('/api', orderRoutes);
 app.use('/api', bannerRoutes);
 app.use('/api', topCategoryRoutes);
+app.use('/api', authCustomer);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

@@ -65,6 +65,39 @@ model admins {
   createdAt DateTime? @default(now()) @db.DateTime(0)
 }
 
+model Customers {
+  id          Int                  @id @default(autoincrement())
+  email       String               @unique
+  password    String
+  firstName   String?
+  lastName    String?
+  phone       String?
+  isVerified  Boolean              @default(false)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  verificationCodes VerificationCode[]
+  passwordResetAttempts PasswordResetAttempt[]
+  orders      CreateOrder[]
+  addresses   Address[]
+}
+
+model VerificationCode {
+  id          Int       @id @default(autoincrement())
+  customerId  Int
+  customer    Customers @relation(fields: [customerId], references: [id])
+  code        String
+  isForReset  Boolean
+  expiry      DateTime
+  createdAt   DateTime  @default(now())
+}
+
+model PasswordResetAttempt {
+  id          Int       @id @default(autoincrement())
+  customerId  Int
+  customer    Customers @relation(fields: [customerId], references: [id])
+  createdAt   DateTime  @default(now())
+}
+
 model categories {
   id            Int             @id @default(autoincrement())
   name          String          @db.VarChar(255)
@@ -95,23 +128,55 @@ model subcategories {
 }
 
 model CreateOrder {
-  id             Int       @id @default(autoincrement())
-  email          String    @db.VarChar(255)
-  phone          String    @db.VarChar(20)
-  firstName      String    @db.VarChar(100)
-  lastName       String    @db.VarChar(100)
-  cnic           String    @db.VarChar(13)
-  city           String    @db.VarChar(100)
-  area           String    @db.VarChar(100)
-  address        String    @db.Text
-  orderNotes     String?   @db.Text
-  paymentMethod  String    @db.VarChar(50)
-  productName    String    @db.VarChar(255)
-  totalDealValue Decimal   @db.Decimal(10, 2)
-  advanceAmount  Decimal   @db.Decimal(10, 2)
-  monthlyAmount  Decimal   @db.Decimal(10, 2)
+  id             Int        @id @default(autoincrement())
+  customerId     Int?
+  email          String     @db.VarChar(255)
+  phone          String     @db.VarChar(20)
+  firstName      String     @db.VarChar(100)
+  lastName       String     @db.VarChar(100)
+  cnic           String     @db.VarChar(13)
+  city           String     @db.VarChar(100)
+  area           String     @db.VarChar(100)
+  address        String     @db.Text
+  orderNotes     String?    @db.Text
+  paymentMethod  String     @db.VarChar(50)
+  productName    String     @db.VarChar(255)
+  totalDealValue Decimal    @db.Decimal(10, 2)
+  advanceAmount  Decimal    @db.Decimal(10, 2)
+  monthlyAmount  Decimal    @db.Decimal(10, 2)
   months         Int
-  createdAt      DateTime? @default(now()) @db.Timestamp(0)
+  createdAt      DateTime?  @default(now()) @db.Timestamp(0)
+  status         OrderStatus @default(Pending)
+  customer       Customers? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+}
+
+enum OrderStatus {
+  Pending
+  Confirmed
+  Shipped
+  Delivered
+  Cancelled
+}
+
+model Address {
+  id         Int       @id @default(autoincrement())
+  customerId Int
+  firstName  String
+  lastName   String
+  company    String?
+  address1   String
+  city       String
+  region     String
+  zipCode    String
+  phone      String
+  isDefault  Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  customer   Customers @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
 }
 
 model Banner {
