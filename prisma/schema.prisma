@@ -71,8 +71,8 @@ model Customers {
   password    String
   firstName   String?
   lastName    String?
-  phone       String?
-  cnic        String?              @db.VarChar(13)
+  phone       String?              @unique
+  cnic        String?              @db.VarChar(13) @unique
   isVerified  Boolean              @default(false)
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
@@ -151,6 +151,9 @@ model CreateOrder {
   customer       Customers? @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
   @@index([customerId])
+  @@index([email])
+  @@index([phone])
+  @@index([cnic])
 }
 
 enum OrderStatus {

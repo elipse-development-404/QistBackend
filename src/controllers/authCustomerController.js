@@ -28,7 +28,7 @@ const isValidEmail = (email) => {
 };
 
 const generateCode = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit code
+  return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
 const sendVerificationEmail = async (email, code) => {
@@ -45,54 +45,49 @@ const signup = async (req, res) => {
   const { firstName, lastName, email, cnic, phone, password, confirmPassword } = req.body;
 
   if (!firstName || !lastName || !email || !cnic || !phone || !password || !confirmPassword) {
-    return res.status(400).json({ error: 'All fields are required' });
+    return res.status(400).json({ error: "All fields are required" });
   }
 
   if (!isValidEmail(email)) {
-    return res.status(400).json({ error: 'Invalid email format' });
+    return res.status(400).json({ error: "Invalid email format" });
   }
 
   if (!/^\d{13}$/.test(cnic)) {
-    return res.status(400).json({ error: 'Invalid CNIC format. Must be a 13-digit number' });
+    return res.status(400).json({ error: "Invalid CNIC format. Must be a 13-digit number" });
   }
 
   if (!/^\+?\d{11}$/.test(phone)) {
-    return res.status(400).json({ error: 'Invalid phone number format' });
+    return res.status(400).json({ error: "Invalid phone number format" });
   }
 
   if (password !== confirmPassword) {
-    return res.status(400).json({ error: 'Passwords do not match' });
+    return res.status(400).json({ error: "Passwords do not match" });
   }
 
   if (password.length < 8) {
-    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    return res.status(400).json({ error: "Password must be at least 8 characters" });
   }
 
   try {
     const existingCustomer = await prisma.customers.findFirst({
       where: {
-        OR: [
-          { email },
-          { phone },
-          { cnic },
-        ],
+        OR: [{ email }, { phone }, { cnic }],
       },
     });
 
     if (existingCustomer) {
       if (existingCustomer.email === email) {
-        return res.status(400).json({ error: 'Email is already in use' });
+        return res.status(400).json({ error: "Email is already in use" });
       }
       if (existingCustomer.phone === phone) {
-        return res.status(400).json({ error: 'Phone number is already in use' });
+        return res.status(400).json({ error: "Phone number is already in use" });
       }
       if (existingCustomer.cnic === cnic) {
-        return res.status(400).json({ error: 'CNIC is already in use' });
+        return res.status(400).json({ error: "CNIC is already in use" });
       }
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
     const customer = await prisma.customers.create({
       data: {
         firstName,
@@ -106,18 +101,23 @@ const signup = async (req, res) => {
     });
 
     const existingOrders = await prisma.createOrder.findMany({
-      where: { email, customerId: null },
+      where: {
+        customerId: null,
+        OR: [{ email }, { phone }, { cnic }],
+      },
     });
+
     if (existingOrders.length > 0) {
       await prisma.createOrder.updateMany({
-        where: { id: { in: existingOrders.map(o => o.id) } },
+        where: {
+          id: { in: existingOrders.map((o) => o.id) },
+        },
         data: { customerId: customer.id },
       });
     }
 
     const code = generateCode();
     const expiry = new Date(Date.now() + 10 * 60 * 1000);
-
     await prisma.verificationCode.create({
       data: {
         customerId: customer.id,
@@ -129,10 +129,13 @@ const signup = async (req, res) => {
 
     await sendVerificationEmail(email, code);
 
-    res.status(201).json({ customer, message: 'Signup successful. Verification code sent to email.' });
+    res.status(201).json({
+      customer,
+      message: "Signup successful. Verification code sent to email.",
+    });
   } catch (error) {
-    console.error('Signup error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Signup error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -246,35 +249,71 @@ const login = async (req, res) => {
   const { email, password, rememberMe = false } = req.body;
 
   if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required' });
+    return res.status(400).json({ error: "Email and password are required" });
   }
 
   try {
     const customer = await prisma.customers.findUnique({ where: { email } });
     if (!customer) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: "Invalid credentials" });
     }
 
     const isPasswordValid = await bcrypt.compare(password, customer.password);
     if (!isPasswordValid) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: "Invalid credentials" });
     }
 
     if (!customer.isVerified) {
-      return res.status(403).json({ error: 'Email not verified', requiresVerification: true });
+      return res.status(403).json({ error: "Email not verified", requiresVerification: true });
     }
 
-    const expiry = rememberMe ? '30d' : '7d';
+    const existingOrders = await prisma.createOrder.findMany({
+      where: {
+        customerId: null,
+        OR: [
+          { email: customer.email },
+          { phone: customer.phone },
+          { cnic: customer.cnic },
+        ],
+      },
+    });
+
+    if (existingOrders.length > 0) {
+      await prisma.createOrder.updateMany({
+        where: {
+          id: { in: existingOrders.map((o) => o.id) },
+        },
+        data: { customerId: customer.id },
+      });
+    }
+
+    const expiry = rememberMe ? "30d" : "7d";
     const token = jwt.sign(
-      { customerId: customer.id, email: customer.email, firstName: customer.firstName, lastName: customer.lastName, phone: customer.phone, cnic: customer.cnic },
+      {
+        customerId: customer.id,
+        email: customer.email,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
+        phone: customer.phone,
+        cnic: customer.cnic,
+      },
       JWT_SECRET,
       { expiresIn: expiry }
     );
 
-    res.json({ token, customer: { firstName: customer.firstName, lastName: customer.lastName, email: customer.email, phone: customer.phone, cnic: customer.cnic } });
+    res.json({
+      token,
+      customer: {
+        firstName: customer.firstName,
+        lastName: customer.lastName,
+        email: customer.email,
+        phone: customer.phone,
+        cnic: customer.cnic,
+      },
+    });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Login error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
