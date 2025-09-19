@@ -1,10 +1,13 @@
-const { createProduct, getAllProducts, getProductByName, toggleProductField, updateProduct, getProductPagination, getProductByCategorySlug, getProductByCategoryAndSubSlug, getLatestProducts, getAllProductsPagination, getProductById, getProductSearch, getProductBySubcategorySlugSimple } = require('../controllers/productController');
+const { createProduct, getAllProducts, getProductByName, toggleProductField, updateProduct, getProductPagination, getProductByCategorySlug, getProductByCategoryAndSubSlug, getLatestProducts, getAllProductsPagination, getProductById, getProductSearch, getProductBySubcategorySlugSimple, bulkCreateProducts, bulkUpdateProducts, bulkDeleteProducts } = require('../controllers/productController');
 const upload = require('../middlewares/uploadMiddleware');
 const express = require('express');
 const router = express.Router();
 const { query } = require('express-validator');
 
 router.post('/create-product', upload.array('files'), createProduct);
+router.post('/bulk-create-products', bulkCreateProducts);
+router.patch('/bulk-update-products', bulkUpdateProducts);
+router.post('/bulk-delete-products', bulkDeleteProducts);
 router.get('/product', getAllProducts);
 router.get('/product/pagination', getProductPagination);
 router.get('/product/search', getProductSearch);
@@ -29,5 +32,6 @@ router.put('/product/:id', updateProduct);
 router.get('/product/name/:name', getProductByName);
 router.get('/product/:id', getProductById);
 router.patch('/products/:id/toggle', toggleProductField);
+// router.delete('/products/:id', deleteProduct); // Add if not there
 
 module.exports = router;

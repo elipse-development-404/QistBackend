@@ -21,13 +21,12 @@ const createProduct = async (req, res) => {
       brand,
       short_description,
       long_description,
-      price,
       stock,
       status,
-      createdAt,
+      is_approved,
+      isDeal,
       installments
     } = formattedData
-
 
     const uploadedFiles = req.files?.map(file => ({
       fileName: file.originalname,
@@ -36,12 +35,9 @@ const createProduct = async (req, res) => {
       cloudinaryId: file.filename
     })) || [];
 
-
     const slug = name.toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-') // non-alphanumeric ko - bana do
-      .replace(/^-+|-+$/g, ''); // shuru/akhir ke - hata do
-
-
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
 
     const productCreation = await prisma.product.create({
       data: {
@@ -53,48 +49,155 @@ const createProduct = async (req, res) => {
         brand,
         short_description,
         long_description,
-        // price: parseFloat(price),
-        stock: true,
-        createdAt,
+        stock,
+        is_approved,
+        isDeal,
         ProductImage: {
-          create:
-            uploadedFiles.map((file) => ({
-              url: file.filePath,
-
-            }))
-
+          create: uploadedFiles.map((file) => ({
+            url: file.filePath,
+          }))
         },
-
         ProductInstallments: {
-          create:
-            installments.map((ins) => ({
-              totalPrice: ins.totalPrice,
-              monthlyAmount: ins.monthlyAmount,
-              advance: ins.advance,
-              months: ins.months,
-              isActive: true,
-
-
-
-            }))
-
+          create: installments.map((ins) => ({
+            totalPrice: ins.totalPrice,
+            monthlyAmount: ins.monthlyAmount,
+            advance: ins.advance,
+            months: ins.months,
+            isActive: true,
+          }))
         }
       }
-
-
     })
-
 
     res.status(201).json(productCreation)
 
-
-
   } catch (error) {
-    console.error('Error creating order:', error);
+    console.error('Error creating product:', error);
     res.status(500).json({ message: 'Internal server error', error: error.message });
   }
-
 }
+
+const bulkCreateProducts = async (req, res) => {
+  const { products } = req.body;
+  try {
+    // Validate incoming products (removed category/subcategory check)
+    for (const data of products) {
+      if (!data.name || typeof data.name !== 'string') {
+        return res.status(400).json({ message: `Invalid or missing name in product data` });
+      }
+      if (!Array.isArray(data.installments) || data.installments.length === 0) {
+        return res.status(400).json({ message: `At least one installment plan is required for product: ${data.name}` });
+      }
+      for (const ins of data.installments) {
+        if (
+          typeof ins.totalPrice !== 'number' ||
+          isNaN(ins.totalPrice) ||
+          typeof ins.monthlyAmount !== 'number' ||
+          isNaN(ins.monthlyAmount) ||
+          !Number.isInteger(ins.months) ||
+          isNaN(ins.months) ||
+          typeof ins.advance !== 'number' ||
+          isNaN(ins.advance)
+        ) {
+          return res.status(400).json({ message: `Invalid installment data for product: ${data.name}` });
+        }
+      }
+    }
+
+    const created = await prisma.$transaction(async (tx) => {
+      const results = [];
+      for (const data of products) {
+        const slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        const createdProduct = await tx.product.create({
+          data: {
+            category_id: data.category_id || null,
+            subcategory_id: data.subcategory_id || null,
+            name: data.name,
+            slugName: slug,
+            status: data.status,
+            brand: data.brand || '',
+            short_description: data.short_description || '',
+            long_description: data.long_description || '',
+            stock: data.stock,
+            is_approved: data.is_approved,
+            isDeal: data.isDeal,
+            ProductImage: { create: [] },
+            ProductInstallments: {
+              create: data.installments.map(ins => ({
+                totalPrice: ins.totalPrice,
+                monthlyAmount: ins.monthlyAmount,
+                advance: ins.advance,
+                months: ins.months,
+                isActive: ins.isActive,
+              })),
+            },
+          },
+        });
+        results.push(createdProduct);
+      }
+      return results;
+    });
+    res.status(201).json({ message: 'Products created successfully', created });
+  } catch (error) {
+    console.error('Error creating bulk products:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
+const bulkUpdateProducts = async (req, res) => {
+  const { ids, updates } = req.body;
+  try {
+    if (updates) {
+      await prisma.product.updateMany({
+        where: { id: { in: ids } },
+        data: {
+          status: updates.status !== undefined ? updates.status : undefined,
+          stock: updates.stock !== undefined ? updates.stock : undefined,
+        },
+      });
+    }
+    // For new images
+    const uploadedFiles = req.files?.map(file => file.path) || [];
+    if (uploadedFiles.length > 0) {
+      const newImagesData = ids.flatMap(id => uploadedFiles.map(url => ({ product_id: id, url })));
+      await prisma.productImage.createMany({ data: newImagesData });
+    }
+    // For new installment (parse from formData if sent)
+    ids.forEach(id => {
+      const newInstStr = req.body[`newInstallment_${id}`];
+      if (newInstStr) {
+        const newInst = JSON.parse(newInstStr);
+        prisma.productInstallments.create({
+          data: {
+            product_id: id,
+            totalPrice: parseFloat(newInst.totalPrice),
+            monthlyAmount: parseFloat(newInst.monthlyAmount),
+            advance: parseFloat(newInst.advance),
+            months: parseInt(newInst.months),
+            isActive: true,
+          }
+        });
+      }
+    });
+    res.status(200).json({ message: 'Products updated successfully' });
+  } catch (error) {
+    console.error('Error bulk updating products:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
+const bulkDeleteProducts = async (req, res) => {
+  const { ids } = req.body;
+  try {
+    await prisma.product.deleteMany({
+      where: { id: { in: ids } },
+    });
+    res.status(200).json({ message: 'Products deleted successfully' });
+  } catch (error) {
+    console.error('Error bulk deleting products:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
 
 
 const getProductPagination = async (req, res) => {
@@ -223,6 +326,7 @@ const getAllProductsPagination = async (req, res) => {
     status = 'all',
     sort = 'name',
     order = 'desc',
+    ids,  // New: Support ?ids=1,2,3
   } = req.query;
   const offset = (page - 1) * limit;
 
@@ -244,6 +348,9 @@ const getAllProductsPagination = async (req, res) => {
     }
     if (status === 'active') where.isActive = true;
     if (status === 'inactive') where.isActive = false;
+    if (ids) {
+      where.id = { in: ids.split(',').map(Number) };  // New: Filter by ids
+    }
 
     // Sorting
     const validSortFields = ['id', 'name', 'price', 'isActive'];
@@ -375,9 +482,8 @@ const getAllProducts = async (req, res) => {
 
 const updateProduct = async (req, res) => {
   try {
-   
+    const { id } = req.params;
     const {
-      id,
       category_id,
       subcategory_id,
       name,
@@ -386,74 +492,33 @@ const updateProduct = async (req, res) => {
       long_description,
       stock,
       status,
-      installments
-    } = req.body
+      is_approved,
+      isDeal,
+    } = req.body;
 
-
-    const uploadedFiles = req.files?.map(file => ({
-      fileName: file.originalname,
-      filePath: file.path,
-      size: file.size,
-      cloudinaryId: file.filename
-    })) || [];
-
-    const productUpdation = await prisma.product.update({
+    const updatedProduct = await prisma.product.update({
       where: { id: parseInt(id) },
       data: {
-        category_id,
-        subcategory_id,
+        category_id: category_id ? parseInt(category_id) : undefined,
+        subcategory_id: subcategory_id ? parseInt(subcategory_id) : undefined,
         name,
-        status,
         brand,
         short_description,
         long_description,
         stock,
-        updatedAt,
+        status,
+        is_approved,
+        isDeal,
+        updatedAt: new Date(),
       }
-    })
+    });
 
-    const enriched = await Promise.all(
-
-      uploadedFiles.map(async (file) => {
-
-        await prisma.productImage.create({
-          where: { product_id: parseInt(id) },
-          data: {
-            url: file.filePath,
-          }
-        })
-      })
-    )
-    
-
-    const enriched2 = await Promise.all(
-
-      installments.map(async(ins) => {
-  
-        const productInstallments = await prisma.productInstallments.create({
-          where: { product_id: parseInt(id) },
-          data: {
-              totalPrice: ins.totalPrice,
-              monthlyAmount: ins.monthlyAmount,
-              advance: ins.advance,
-              months: ins.months,
-             
-          }
-        })
-  
-      })
-    )
-
-    res.status(201).json(productUpdation)
-
-
-
+    res.status(200).json(updatedProduct);
   } catch (error) {
-    console.error('Error creating order:', error);
+    console.error('Error updating product:', error);
     res.status(500).json({ message: 'Internal server error', error: error.message });
   }
-
-}
+};
 
 const toggleProductField = async (req, res) => {
   try {
@@ -997,4 +1062,4 @@ const getProductBySubcategorySlugSimple = async (req, res) => {
   }
 };
 
-module.exports = { createProduct, getAllProducts, getProductByName,toggleProductField,updateProduct,getProductPagination,getProductByCategorySlug,getProductByCategoryAndSubSlug,getLatestProducts,getAllProductsPagination, getProductById, getProductSearch, getProductBySubcategorySlugSimple }
+module.exports = { createProduct, getAllProducts, getProductByName, toggleProductField, updateProduct, getProductPagination, getProductByCategorySlug, getProductByCategoryAndSubSlug, getLatestProducts, getAllProductsPagination, getProductById, getProductSearch, getProductBySubcategorySlugSimple, bulkCreateProducts, bulkUpdateProducts, bulkDeleteProducts }

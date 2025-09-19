@@ -36,6 +36,7 @@ model ProductImage {
   id         Int     @id @default(autoincrement())
   url        String
   product_id Int
+  alt_text  String?
   Product    Product @relation(fields: [product_id], references: [id], onDelete: Cascade)
 
   @@index([product_id], map: "ProductImage_product_id_fkey")

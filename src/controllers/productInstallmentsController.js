@@ -46,37 +46,42 @@ const updateProductImages = async (req, res) => {
   try {
     let {product_id} = req.body;
 
-    
+    if (!product_id) {
+      return res.status(400).json({ message: "Product ID is required" });
+    }
 
-    // Remove existing installments for this product (if replacing them)
-   
+    product_id = parseInt(product_id);
+
+    const productExists = await prisma.product.findUnique({
+      where: { id: product_id },
+    });
+
+    if (!productExists) {
+      return res.status(404).json({ message: "Product not found" });
+    }
 
     const uploadedFiles = req.files?.map(file => ({
-      
       url: file.path,
-      product_id: parseInt(product_id),
-      
+      product_id,
     })) || [];
 
-    // Insert new installments
-    const productCreation = await prisma.ProductImage.createMany({
+    // Insert new images
+    const productCreation = await prisma.productImage.createMany({
       data: uploadedFiles
     });
 
-  
+    const newImages = await prisma.productImage.findMany({
+      where: { product_id },
+      orderBy: { id: "desc" },
+      take: uploadedFiles.length,
+    });
 
-  const newImages = await prisma.ProductImage.findMany({
-  where: { product_id: parseInt(product_id) },
-  orderBy: { id: "desc" },
-  take: uploadedFiles.length,
-});
-
-res.status(201).json({
-  message: "Images uploaded successfully",
-  uploaded: newImages,
-});
+    res.status(201).json({
+      message: "Images uploaded successfully",
+      uploaded: newImages,
+    });
   } catch (error) {
-    console.error("Error updating installments:", error);
+    console.error("Error updating images:", error);
     res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
@@ -86,7 +91,7 @@ const deleteProductImages = async (req, res) => {
     const {id}=req.params
 
     try {
-        const deletedFiles=await prisma.ProductImage.delete({
+        const deletedFiles=await prisma.productImage.delete({
             where:{id:parseInt(id)}
         })
 

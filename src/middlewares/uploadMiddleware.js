@@ -1,6 +1,6 @@
-// middlewares/upload.js (replacing your current file)
+
 const multer = require('multer');
-const { storage } = require('../Config/cloudinary'); // adjust path as needed
+const { storage } = require('../Config/cloudinary');
 
 const upload = multer({ storage });
 
