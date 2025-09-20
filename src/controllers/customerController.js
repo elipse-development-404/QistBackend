@@ -88,4 +88,29 @@ const getOrders = async (req, res) => {
   }
 };
 
-module.exports = { getProfile, updateProfile, changePassword, getOrders };
+const requestCancel = async (req, res) => {
+  const { orderId } = req.params;
+  const customerId = req.customer.customerId;
+  try {
+    const order = await prisma.createOrder.findUnique({ where: { id: Number(orderId) } });
+    if (!order || order.customerId !== customerId) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    if (order.cancelRequest !== 'none') {
+      return res.status(400).json({ error: 'Cancel request already sent' });
+    }
+    if (order.status === 'Delivered') {
+      return res.status(400).json({ error: 'Cannot cancel a delivered order' });
+    }
+    const updatedOrder = await prisma.createOrder.update({
+      where: { id: Number(orderId) },
+      data: { cancelRequest: 'pending' },
+    });
+    res.status(200).json(updatedOrder);
+  } catch (error) {
+    console.error('Error requesting cancellation:', error);
+    res.status(500).json({ error: 'Failed to request cancellation' });
+  }
+};
+
+module.exports = { getProfile, updateProfile, changePassword, getOrders, requestCancel };

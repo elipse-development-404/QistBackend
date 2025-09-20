@@ -147,14 +147,17 @@ model CreateOrder {
   advanceAmount  Decimal    @db.Decimal(10, 2)
   monthlyAmount  Decimal    @db.Decimal(10, 2)
   months         Int
+  cancelRequest String @default("none")
   createdAt      DateTime?  @default(now()) @db.Timestamp(0)
   status         OrderStatus @default(Pending)
+  tokenNumber    String     @unique @db.VarChar(255)  // New field for token
   customer       Customers? @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
   @@index([customerId])
   @@index([email])
   @@index([phone])
   @@index([cnic])
+  @@index([tokenNumber])
 }
 
 enum OrderStatus {
@@ -163,6 +166,7 @@ enum OrderStatus {
   Shipped
   Delivered
   Cancelled
+  Rejected
 }
 
 model Address {

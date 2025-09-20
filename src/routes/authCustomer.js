@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { signup, verify, resend, login, forgot, reset } = require('../controllers/authCustomerController');
 const { getAddresses, addAddress, updateAddress, deleteAddress } = require('../controllers/addressController');
-const { updateProfile, changePassword, getOrders, getProfile } = require('../controllers/customerController');
+const { updateProfile, changePassword, getOrders, getProfile, requestCancel } = require('../controllers/customerController');
 const { authenticateCustomerToken } = require('../middlewares/authCustomerMiddleware');
 
 router.post('/customer/signup', signup);
@@ -22,6 +22,8 @@ router.patch('/customer/profile', authenticateCustomerToken, updateProfile);
 router.post('/customer/change-password', authenticateCustomerToken, changePassword);
 
 router.get('/customer/orders', authenticateCustomerToken, getOrders);
+
+router.post('/customer/cancel-request/:orderId', authenticateCustomerToken, requestCancel);
 
 
 module.exports = router;
