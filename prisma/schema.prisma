@@ -148,6 +148,7 @@ model CreateOrder {
   monthlyAmount  Decimal    @db.Decimal(10, 2)
   months         Int
   cancelRequest String @default("none")
+  rejectionReason String?   @db.Text
   createdAt      DateTime?  @default(now()) @db.Timestamp(0)
   status         OrderStatus @default(Pending)
   tokenNumber    String     @unique @db.VarChar(255)  // New field for token
@@ -246,4 +247,13 @@ model TopCategory {
   categories    categories  @relation(fields: [category_id], references: [id], onDelete: Cascade)
 
   @@index([category_id], map: "TopCategory_category_id_fkey")
+}
+
+model Faq {
+  id        Int      @id @default(autoincrement())
+  question  String   @db.Text
+  answer    String   @db.Text
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

@@ -6,7 +6,6 @@ const crypto = require('crypto');
 
 const prisma = new PrismaClient();
 
-// Reusable email sender function with HTML template
 const sendEmail = async (to, subject, orderData) => {
   const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
@@ -25,8 +24,10 @@ const sendEmail = async (to, subject, orderData) => {
     orderNoticeMessage = 'Order details retrieved successfully.';
   } else if (subject === 'Order Cancel Request Approved') {
     orderNoticeMessage = 'Your order cancel request has been approved. Your order is now cancelled.';
+  } else if (subject.includes('Updated to Rejected')) {
+    orderNoticeMessage = `Your order has been rejected. Reason: ${orderData.rejectionReason || 'N/A'}`;
   } else {
-    orderNoticeMessage = 'Order update.';
+    orderNoticeMessage = `Order update. Current Order Status: ${orderData.status}`;
   }
 
   // HTML email template
@@ -66,6 +67,12 @@ const sendEmail = async (to, subject, orderData) => {
           </svg>
           <p>${orderNoticeMessage}</p>
         </div>
+        ${orderData.rejectionReason && orderData.status === "Rejected" ? `
+          <div class="order-detail-wrap">
+            <h5 class="fw-bold text-danger">Rejection Reason</h5>
+            <p>${orderData.rejectionReason}</p>
+          </div>
+        ` : ""}
         <ul class="order-overview-list">
           <li>Order number: <strong>${orderData.id}</strong></li>
           <li>Tracking Number: <strong>${orderData.tokenNumber}</strong></li>
@@ -390,10 +397,6 @@ const getOrderById = async (req, res) => {
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    if (['Cancelled', 'Rejected'].includes(order.status)) {
-      return res.status(403).json({ error: 'Access denied to cancelled or rejected orders' });
-    }
-
     res.status(200).json(order);
   } catch (error) {
     console.error(error);
@@ -593,4 +596,87 @@ const approveCancel = async (req, res) => {
   }
 };
 
-module.exports = { createOrders, trackOrder, getOrders, getPendingOrders, getDeliveredOrders, getOrderById, getCancelRequests, approveCancel, getCancelledOrders };
+const updateOrderStatus = async (req, res) => {
+  const { id } = req.params;
+  const { status, rejectionReason } = req.body;
+
+  if (!status) {
+    return res.status(400).json({ error: 'Status is required' });
+  }
+
+  try {
+    let data = { status };
+    if (status === 'Rejected') {
+      if (!rejectionReason) {
+        return res.status(400).json({ error: 'Rejection reason is required' });
+      }
+      data.rejectionReason = rejectionReason;
+    }
+
+    const updatedOrder = await prisma.createOrder.update({
+      where: { id: Number(id) },
+      data,
+    });
+
+    await sendEmail(updatedOrder.email, `Order Status Updated to ${status}`, updatedOrder);
+
+    res.status(200).json(updatedOrder);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update order status' });
+  }
+};
+
+const getRejectedOrders = async (req, res) => {
+  const {
+    page = 1,
+    limit = 10,
+    search = '',
+  } = req.query;
+  const skip = (page - 1) * limit;
+  const take = Number(limit);
+
+  try {
+    const where = { 
+      AND: [
+        { status: 'Rejected' },
+      ],
+    };
+
+    if (search) {
+      where.AND.push({
+        OR: [
+          { id: isNaN(search) ? undefined : Number(search) },
+          { tokenNumber: { contains: search, mode: 'insensitive' } },
+          { firstName: { contains: search, mode: 'insensitive' } },
+          { lastName: { contains: search, mode: 'insensitive' } },
+          { productName: { contains: search, mode: 'insensitive' } },
+        ].filter(Boolean),
+      });
+    }
+
+    const orders = await prisma.createOrder.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take,
+    });
+
+    const totalItems = await prisma.createOrder.count({ where });
+
+    res.status(200).json({
+      data: orders,
+      pagination: {
+        totalItems,
+        totalPages: Math.ceil(totalItems / limit),
+        currentPage: Number(page),
+        limit: Number(limit),
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch rejected orders' });
+  }
+};
+
+module.exports = { createOrders, trackOrder, getOrders, getPendingOrders, getDeliveredOrders, getOrderById, getCancelRequests, approveCancel, getCancelledOrders, updateOrderStatus, getRejectedOrders };

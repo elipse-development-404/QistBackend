@@ -77,53 +77,192 @@ const createProduct = async (req, res) => {
   }
 }
 
+// controllers/productController.js (corrected bulkCreateProducts)
+
+// controllers/productController.js (updated bulkCreateProducts with duplicate check)
+
 const bulkCreateProducts = async (req, res) => {
   const { products } = req.body;
   try {
-    // Validate incoming products (removed category/subcategory check)
-    for (const data of products) {
-      if (!data.name || typeof data.name !== 'string') {
-        return res.status(400).json({ message: `Invalid or missing name in product data` });
-      }
-      if (!Array.isArray(data.installments) || data.installments.length === 0) {
-        return res.status(400).json({ message: `At least one installment plan is required for product: ${data.name}` });
-      }
-      for (const ins of data.installments) {
-        if (
-          typeof ins.totalPrice !== 'number' ||
-          isNaN(ins.totalPrice) ||
-          typeof ins.monthlyAmount !== 'number' ||
-          isNaN(ins.monthlyAmount) ||
-          !Number.isInteger(ins.months) ||
-          isNaN(ins.months) ||
-          typeof ins.advance !== 'number' ||
-          isNaN(ins.advance)
-        ) {
-          return res.status(400).json({ message: `Invalid installment data for product: ${data.name}` });
-        }
-      }
+    // Validate input
+    if (!Array.isArray(products) || products.length === 0) {
+      return res.status(400).json({ message: 'No products provided' });
     }
 
     const created = await prisma.$transaction(async (tx) => {
       const results = [];
+      const skippedProducts = [];
+
+      // Fetch all existing categories and subcategories upfront
+      const existingCategories = await tx.categories.findMany({
+        select: { id: true, name: true, slugName: true },
+      });
+      const existingSubcategories = await tx.subcategories.findMany({
+        select: { id: true, name: true, category_id: true, slugName: true },
+      });
+
+      // Fetch all existing products to check for duplicates
+      const existingProducts = await tx.product.findMany({
+        select: { id: true, name: true, category_id: true, subcategory_id: true },
+      });
+
+      // Create maps for quick lookup
+      const categoryMap = new Map(existingCategories.map(cat => [cat.name.toLowerCase(), cat]));
+      const subcategoryMap = new Map(
+        existingSubcategories.map(sub => [`${sub.category_id}_${sub.name.toLowerCase()}`, sub])
+      );
+      const productMap = new Map(
+        existingProducts.map(prod => [
+          `${prod.name.toLowerCase()}_${prod.category_id}_${prod.subcategory_id}`,
+          prod
+        ])
+      );
+
+      const productsToCreate = [];
+      const categoriesToCreate = [];
+      const subcategoriesToCreate = [];
+
+      // Process products
       for (const data of products) {
+        // Validate required fields
+        if (!data.name || !data.category || !data.subcategory || !data.price) {
+          throw new Error(`Missing required fields for product: ${data.name || 'unknown'}`);
+        }
+
+        // Parse price (handle commas)
+        let price = data.price.toString().replace(/,/g, '');
+        price = parseFloat(price);
+        if (isNaN(price) || price <= 0) {
+          throw new Error(`Invalid price for product: ${data.name}`);
+        }
+
+        // Find or prepare category
+        const categoryKey = data.category.toLowerCase();
+        let category = categoryMap.get(categoryKey);
+        if (!category) {
+          const categorySlug = data.category.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+          categoriesToCreate.push({
+            name: data.category,
+            slugName: categorySlug,
+            description: '',
+            isActive: true,
+          });
+        }
+
+        // Find or prepare subcategory
+        let subcategory;
+        if (category) {
+          subcategory = subcategoryMap.get(`${category.id}_${data.subcategory.toLowerCase()}`);
+        }
+        if (!subcategory) {
+          const subcategorySlug = data.subcategory.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+          subcategoriesToCreate.push({
+            categoryName: data.category,
+            name: data.subcategory,
+            slugName: subcategorySlug,
+            description: '',
+            isActive: true,
+          });
+        }
+
+        // Check for existing product
+        const productKey = category && subcategory 
+          ? `${data.name.toLowerCase()}_${category.id}_${subcategory.id}`
+          : null;
+        if (productKey && productMap.has(productKey)) {
+          skippedProducts.push(data.name);
+          continue; // Skip this product if it already exists
+        }
+
+        // Generate installments
+        const installments = generateInstallments(data.category, price);
+        if (installments.length === 0) {
+          throw new Error(`No installment plans generated for product: ${data.name}`);
+        }
+
+        // Prepare product for creation
         const slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        productsToCreate.push({
+          categoryName: data.category,
+          subcategoryName: data.subcategory,
+          category_id: category ? category.id : null,
+          subcategory_id: subcategory ? subcategory.id : null,
+          name: data.name,
+          slugName: slug,
+          status: data.status ?? true,
+          brand: data.brand || data.subcategory,
+          short_description: data.short_description || '',
+          long_description: data.long_description || '',
+          stock: data.stock ?? true,
+          is_approved: data.is_approved ?? false,
+          isDeal: data.isDeal ?? false,
+          installments,
+        });
+      }
+
+      // Create new categories
+      for (const cat of categoriesToCreate) {
+        const newCategory = await tx.categories.create({ data: cat });
+        categoryMap.set(cat.name.toLowerCase(), newCategory);
+      }
+
+      // Create new subcategories
+      for (const sub of subcategoriesToCreate) {
+        const category = categoryMap.get(sub.categoryName.toLowerCase());
+        if (!category) {
+          throw new Error(`Category not found for subcategory: ${sub.name}`);
+        }
+        const newSubcategory = await tx.subcategories.create({
+          data: {
+            category_id: category.id,
+            name: sub.name,
+            slugName: sub.slugName,
+            description: sub.description,
+            isActive: sub.isActive,
+          },
+        });
+        subcategoryMap.set(`${category.id}_${sub.name.toLowerCase()}`, newSubcategory);
+      }
+
+      // Update product category_id and subcategory_id
+      for (const product of productsToCreate) {
+        const category = categoryMap.get(product.categoryName.toLowerCase());
+        if (!category) {
+          throw new Error(`Category not found for product: ${product.name}`);
+        }
+        const subcategory = subcategoryMap.get(`${category.id}_${product.subcategoryName.toLowerCase()}`);
+        if (!subcategory) {
+          throw new Error(`Subcategory not found for product: ${product.name}`);
+        }
+        product.category_id = category.id;
+        product.subcategory_id = subcategory.id;
+
+        // Double-check for duplicates after resolving category/subcategory
+        const productKey = `${product.name.toLowerCase()}_${product.category_id}_${product.subcategory_id}`;
+        if (productMap.has(productKey)) {
+          skippedProducts.push(product.name);
+          continue; // Skip if product exists
+        }
+      }
+
+      // Create products
+      for (const product of productsToCreate) {
         const createdProduct = await tx.product.create({
           data: {
-            category_id: data.category_id || null,
-            subcategory_id: data.subcategory_id || null,
-            name: data.name,
-            slugName: slug,
-            status: data.status,
-            brand: data.brand || '',
-            short_description: data.short_description || '',
-            long_description: data.long_description || '',
-            stock: data.stock,
-            is_approved: data.is_approved,
-            isDeal: data.isDeal,
+            category_id: product.category_id,
+            subcategory_id: product.subcategory_id,
+            name: product.name,
+            slugName: product.slugName,
+            status: product.status,
+            brand: product.brand,
+            short_description: product.short_description,
+            long_description: product.long_description,
+            stock: product.stock,
+            is_approved: product.is_approved,
+            isDeal: product.isDeal,
             ProductImage: { create: [] },
             ProductInstallments: {
-              create: data.installments.map(ins => ({
+              create: product.installments.map(ins => ({
                 totalPrice: ins.totalPrice,
                 monthlyAmount: ins.monthlyAmount,
                 advance: ins.advance,
@@ -135,14 +274,66 @@ const bulkCreateProducts = async (req, res) => {
         });
         results.push(createdProduct);
       }
-      return results;
+
+      return { created: results, skipped: skippedProducts };
+    }, { timeout: 15000 }); // 15-second timeout
+
+    res.status(201).json({
+      message: `Products created successfully. ${created.created.length} created, ${created.skipped.length} skipped.`,
+      created: created.created,
+      skipped: created.skipped,
     });
-    res.status(201).json({ message: 'Products created successfully', created });
   } catch (error) {
     console.error('Error creating bulk products:', error);
     res.status(500).json({ message: 'Internal server error', error: error.message });
   }
 };
+
+// Helper function to generate installments (unchanged)
+function generateInstallments(categoryName, price) {
+  const category = categoryName.toLowerCase();
+  let plans = [];
+
+  if (category === 'mobiles' && price <= 50000) {
+    plans = [
+      { months: 3, profit: 0.20, advance: 0.35 },
+      { months: 6, profit: 0.35, advance: 0.24 },
+      { months: 9, profit: 0.45, advance: 0.20 },
+      { months: 12, profit: 0.55, advance: 0.15 },
+    ];
+  } else if (price > 50000 && price <= 100000) {
+    plans = [
+      { months: 3, profit: 0.20, advance: 0.40 },
+      { months: 6, profit: 0.35, advance: 0.35 },
+      { months: 9, profit: 0.45, advance: 0.30 },
+      { months: 12, profit: 0.55, advance: 0.25 },
+    ];
+  } else if (price > 100000) {
+    plans = [
+      { months: 3, profit: 0.20, advance: 0.40 },
+      { months: 6, profit: 0.35, advance: 0.35 },
+      { months: 9, profit: 0.45, advance: 0.30 },
+      { months: 12, profit: 0.55, advance: 0.25 },
+      { months: 24, profit: 0.85, advance: 0.25 },
+    ];
+  } else {
+    throw new Error(`No installment plans available for category: ${categoryName} and price: ${price}`);
+  }
+
+  return plans.map(plan => {
+    const advanceAmount = Math.round(price * plan.advance * 100) / 100;
+    const profitAmount = Math.round(price * plan.profit * 100) / 100;
+    const totalPrice = Math.round((price + profitAmount) * 100) / 100;
+    const monthlyAmount = Math.round(((totalPrice - advanceAmount) / plan.months) * 100) / 100;
+    return {
+      advance: advanceAmount,
+      totalPrice,
+      monthlyAmount,
+      months: plan.months,
+      isActive: true,
+    };
+  });
+}
 
 const bulkUpdateProducts = async (req, res) => {
   const { ids, updates } = req.body;

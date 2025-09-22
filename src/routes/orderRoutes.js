@@ -11,7 +11,9 @@ const {
   getOrderById,
   approveCancel,
   getCancelRequests,
-  getCancelledOrders
+  getCancelledOrders,
+  updateOrderStatus,
+  getRejectedOrders
 } = require('../controllers/orderController');
 
 const router = express.Router();
@@ -78,5 +80,26 @@ router.get(
 );
 
 router.post('/approve-cancel/:orderId', authenticateToken, approveCancel);
+
+router.put(
+  '/orders/:id/status',
+  authenticateToken,
+  [
+    body('status').isIn(['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled', 'Rejected']),
+    body('rejectionReason').optional().isString().trim(),
+  ],
+  updateOrderStatus
+);
+
+router.get(
+  '/rejected-orders',
+  authenticateToken,
+  [
+    query('page').optional().isInt({ min: 1 }).toInt(),
+    query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
+    query('search').optional().isString().trim(),
+  ],
+  getRejectedOrders
+);
 
 module.exports = router;
