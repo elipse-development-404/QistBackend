@@ -1,10 +1,41 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.0.x"]
 }
+
 
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
+}
+
+model categories {
+  id            Int             @id @default(autoincrement())
+  name          String          @db.VarChar(255) @unique
+  description   String?         @db.Text
+  created_at    DateTime        @default(now()) @db.Timestamp(0)
+  updated_at    DateTime        @default(now()) @db.Timestamp(0)
+  isActive      Boolean?        @default(true)
+  icon          String?         @db.Text
+  slugName      String?         @unique
+  Product       Product[]
+  subcategories subcategories[]
+  TopCategory   TopCategory[]
+}
+
+model subcategories {
+  id          Int        @id @default(autoincrement())
+  category_id Int
+  name        String     @db.VarChar(255)
+  created_at  DateTime   @default(now()) @db.Timestamp(0)
+  updated_at  DateTime   @default(now()) @db.Timestamp(0)
+  isActive    Boolean?   @default(true)
+  description String?    @db.Text
+  slugName    String?
+  Product     Product[]
+  categories  categories @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "subcategories_ibfk_1")
+  @@unique([category_id, name])
+  @@index([category_id], map: "category_id")
 }
 
 model Product {
@@ -12,7 +43,8 @@ model Product {
   category_id         Int?
   subcategory_id      Int?
   name                String
-  brand               String?
+  price               Int
+  brand               String              @default("Qist Market")
   short_description   String?
   long_description    String?               @db.Text
   stock               Boolean               @default(true)
@@ -20,14 +52,14 @@ model Product {
   updatedAt           DateTime?             @default(now())
   is_approved         Boolean               @default(false)
   status              Boolean               @default(false)
-  slugName            String?
+  slugName            String?               @unique
   isDeal              Boolean               @default(false)
   categories          categories?           @relation(fields: [category_id], references: [id], onDelete: Cascade)
   subcategories       subcategories?        @relation(fields: [subcategory_id], references: [id], onDelete: Cascade)
   ProductImage        ProductImage[]
   ProductInstallments ProductInstallments[]
   ProductDeals        ProductDeal[]
-
+  @@unique([name, category_id, subcategory_id]) // Add unique constraint
   @@index([category_id], map: "Product_category_id_fkey")
   @@index([subcategory_id], map: "Product_subcategory_id_fkey")
 }
@@ -45,11 +77,11 @@ model ProductImage {
 model ProductInstallments {
   id            Int      @id @default(autoincrement())
   product_id    Int
-  advance       Float
+  advance       Int
   isActive      Boolean? @default(true)
-  monthlyAmount Float
+  monthlyAmount Int
   months        Int
-  totalPrice    Float
+  totalPrice    Int
   dealId        Int?
   Deal          Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
   Product       Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
@@ -100,35 +132,6 @@ model PasswordResetAttempt {
   createdAt   DateTime  @default(now())
 }
 
-model categories {
-  id            Int             @id @default(autoincrement())
-  name          String          @db.VarChar(255)
-  description   String?         @db.Text
-  created_at    DateTime        @default(now()) @db.Timestamp(0)
-  updated_at    DateTime        @default(now()) @db.Timestamp(0)
-  isActive      Boolean?        @default(true)
-  icon          String?         @db.Text
-  slugName      String?
-  Product       Product[]
-  subcategories subcategories[]
-  TopCategory   TopCategory[]
-}
-
-model subcategories {
-  id          Int        @id @default(autoincrement())
-  category_id Int
-  name        String     @db.VarChar(255)
-  created_at  DateTime   @default(now()) @db.Timestamp(0)
-  updated_at  DateTime   @default(now()) @db.Timestamp(0)
-  isActive    Boolean?   @default(true)
-  description String?    @db.Text
-  slugName    String?
-  Product     Product[]
-  categories  categories @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "subcategories_ibfk_1")
-
-  @@index([category_id], map: "category_id")
-}
-
 model CreateOrder {
   id             Int        @id @default(autoincrement())
   customerId     Int?
@@ -138,7 +141,6 @@ model CreateOrder {
   lastName       String     @db.VarChar(100)
   cnic           String     @db.VarChar(13)
   city           String     @db.VarChar(100)
-  area           String     @db.VarChar(100)
   address        String     @db.Text
   orderNotes     String?    @db.Text
   paymentMethod  String     @db.VarChar(50)
@@ -175,7 +177,6 @@ model Address {
   customerId Int
   address1   String
   city       String
-  area       String
   isDefault  Boolean   @default(false)
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
@@ -254,6 +255,46 @@ model Faq {
   question  String   @db.Text
   answer    String   @db.Text
   status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model About {
+  id        Int      @id @default(autoincrement())
+  content   String   @db.Text
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TermsAndPrivacy {
+  id        Int      @id @default(autoincrement())
+  content   String   @db.Text
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ReturnsRefundsPolicy {
+  id        Int      @id @default(autoincrement())
+  content   String   @db.Text
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model VerificationProcess {
+  id        Int      @id @default(autoincrement())
+  content   String   @db.Text
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DeliveryPolicy {
+  id        Int      @id @default(autoincrement())
+  content   String   @db.Text
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

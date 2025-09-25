@@ -1,4 +1,3 @@
-// controllers/orderController.js
 const { validationResult } = require('express-validator');
 const { PrismaClient } = require('@prisma/client');
 const nodemailer = require('nodemailer');
@@ -143,8 +142,8 @@ const sendEmail = async (to, subject, orderData) => {
                 <td><span class="fw-bold">${orderData.address}</span></td>
               </tr>
               <tr>
-                <td><span class="fw-bold">Area / City:</span></td>
-                <td><span class="fw-bold">${orderData.area}, ${orderData.city}</span></td>
+                <td><span class="fw-bold">City:</span></td>
+                <td><span class="fw-bold">${orderData.city}</span></td>
               </tr>
             </tbody>
           </table>
@@ -416,7 +415,6 @@ const createOrders = async (req, res) => {
       'lastName',
       'cnic',
       'city',
-      'area',
       'address',
       'paymentMethod',
       'productName',
@@ -466,7 +464,6 @@ const createOrders = async (req, res) => {
         lastName: data.lastName,
         cnic: data.cnic,
         city: data.city,
-        area: data.area,
         address: data.address,
         orderNotes: data.orderNotes || null,
         paymentMethod: data.paymentMethod,

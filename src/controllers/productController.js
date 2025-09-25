@@ -5,12 +5,12 @@ const prisma = new PrismaClient();
 
 const createProduct = async (req, res) => {
   try {
-    let formattedData = {}
+    let formattedData = {};
     if (req.body.formattedData) {
       try {
-        formattedData = JSON.parse(req.body.formattedData)
+        formattedData = JSON.parse(req.body.formattedData);
       } catch (err) {
-        return res.status(400).json({ message: "Invalid formattedData" })
+        return res.status(400).json({ message: "Invalid formattedData" });
       }
     }
 
@@ -18,24 +18,50 @@ const createProduct = async (req, res) => {
       category_id,
       subcategory_id,
       name,
-      brand,
       short_description,
       long_description,
       stock,
       status,
       is_approved,
       isDeal,
-      installments
-    } = formattedData
+      installments,
+      price,
+    } = formattedData;
+
+    // Validate required fields
+    if (!name || !category_id || !subcategory_id || !price) {
+      return res.status(400).json({ message: "Name, category_id, subcategory_id, and price are required" });
+    }
+
+    // Fetch category name for generating installments
+    const category = await prisma.categories.findUnique({
+      where: { id: parseInt(category_id) },
+      select: { name: true },
+    });
+
+    if (!category) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+
+    // Use provided installments or generate default ones
+    let finalInstallments = installments && installments.length > 0 ? installments : [];
+    if (finalInstallments.length === 0) {
+      try {
+        finalInstallments = generateInstallments(category.name, parseFloat(price));
+      } catch (err) {
+        return res.status(400).json({ message: err.message });
+      }
+    }
 
     const uploadedFiles = req.files?.map(file => ({
       fileName: file.originalname,
       filePath: file.path,
       size: file.size,
-      cloudinaryId: file.filename
+      cloudinaryId: file.filename,
     })) || [];
 
-    const slug = name.toLowerCase()
+    const slug = name
+      .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
 
@@ -44,252 +70,44 @@ const createProduct = async (req, res) => {
         category_id: parseInt(category_id),
         subcategory_id: parseInt(subcategory_id),
         name,
+        price,
         slugName: slug,
-        status,
-        brand,
-        short_description,
-        long_description,
-        stock,
-        is_approved,
-        isDeal,
+        status: status ?? true,
+        brand: 'Qist Market',
+        short_description: short_description || '',
+        long_description: long_description || '',
+        stock: stock ?? true,
+        is_approved: is_approved ?? false,
+        isDeal: isDeal ?? false,
         ProductImage: {
           create: uploadedFiles.map((file) => ({
             url: file.filePath,
-          }))
+          })),
         },
         ProductInstallments: {
-          create: installments.map((ins) => ({
-            totalPrice: ins.totalPrice,
-            monthlyAmount: ins.monthlyAmount,
-            advance: ins.advance,
-            months: ins.months,
-            isActive: true,
-          }))
-        }
-      }
-    })
+          create: finalInstallments.map((ins) => ({
+            totalPrice: parseFloat(ins.totalPrice),
+            monthlyAmount: parseFloat(ins.monthlyAmount),
+            advance: parseFloat(ins.advance),
+            months: parseInt(ins.months),
+            isActive: ins.isActive ?? true,
+          })),
+        },
+      },
+    });
 
-    res.status(201).json(productCreation)
-
+    res.status(201).json(productCreation);
   } catch (error) {
     console.error('Error creating product:', error);
     res.status(500).json({ message: 'Internal server error', error: error.message });
   }
-}
-
-// controllers/productController.js (corrected bulkCreateProducts)
-
-// controllers/productController.js (updated bulkCreateProducts with duplicate check)
-
-const bulkCreateProducts = async (req, res) => {
-  const { products } = req.body;
-  try {
-    // Validate input
-    if (!Array.isArray(products) || products.length === 0) {
-      return res.status(400).json({ message: 'No products provided' });
-    }
-
-    const created = await prisma.$transaction(async (tx) => {
-      const results = [];
-      const skippedProducts = [];
-
-      // Fetch all existing categories and subcategories upfront
-      const existingCategories = await tx.categories.findMany({
-        select: { id: true, name: true, slugName: true },
-      });
-      const existingSubcategories = await tx.subcategories.findMany({
-        select: { id: true, name: true, category_id: true, slugName: true },
-      });
-
-      // Fetch all existing products to check for duplicates
-      const existingProducts = await tx.product.findMany({
-        select: { id: true, name: true, category_id: true, subcategory_id: true },
-      });
-
-      // Create maps for quick lookup
-      const categoryMap = new Map(existingCategories.map(cat => [cat.name.toLowerCase(), cat]));
-      const subcategoryMap = new Map(
-        existingSubcategories.map(sub => [`${sub.category_id}_${sub.name.toLowerCase()}`, sub])
-      );
-      const productMap = new Map(
-        existingProducts.map(prod => [
-          `${prod.name.toLowerCase()}_${prod.category_id}_${prod.subcategory_id}`,
-          prod
-        ])
-      );
-
-      const productsToCreate = [];
-      const categoriesToCreate = [];
-      const subcategoriesToCreate = [];
-
-      // Process products
-      for (const data of products) {
-        // Validate required fields
-        if (!data.name || !data.category || !data.subcategory || !data.price) {
-          throw new Error(`Missing required fields for product: ${data.name || 'unknown'}`);
-        }
-
-        // Parse price (handle commas)
-        let price = data.price.toString().replace(/,/g, '');
-        price = parseFloat(price);
-        if (isNaN(price) || price <= 0) {
-          throw new Error(`Invalid price for product: ${data.name}`);
-        }
-
-        // Find or prepare category
-        const categoryKey = data.category.toLowerCase();
-        let category = categoryMap.get(categoryKey);
-        if (!category) {
-          const categorySlug = data.category.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-          categoriesToCreate.push({
-            name: data.category,
-            slugName: categorySlug,
-            description: '',
-            isActive: true,
-          });
-        }
-
-        // Find or prepare subcategory
-        let subcategory;
-        if (category) {
-          subcategory = subcategoryMap.get(`${category.id}_${data.subcategory.toLowerCase()}`);
-        }
-        if (!subcategory) {
-          const subcategorySlug = data.subcategory.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-          subcategoriesToCreate.push({
-            categoryName: data.category,
-            name: data.subcategory,
-            slugName: subcategorySlug,
-            description: '',
-            isActive: true,
-          });
-        }
-
-        // Check for existing product
-        const productKey = category && subcategory 
-          ? `${data.name.toLowerCase()}_${category.id}_${subcategory.id}`
-          : null;
-        if (productKey && productMap.has(productKey)) {
-          skippedProducts.push(data.name);
-          continue; // Skip this product if it already exists
-        }
-
-        // Generate installments
-        const installments = generateInstallments(data.category, price);
-        if (installments.length === 0) {
-          throw new Error(`No installment plans generated for product: ${data.name}`);
-        }
-
-        // Prepare product for creation
-        const slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-        productsToCreate.push({
-          categoryName: data.category,
-          subcategoryName: data.subcategory,
-          category_id: category ? category.id : null,
-          subcategory_id: subcategory ? subcategory.id : null,
-          name: data.name,
-          slugName: slug,
-          status: data.status ?? true,
-          brand: data.brand || data.subcategory,
-          short_description: data.short_description || '',
-          long_description: data.long_description || '',
-          stock: data.stock ?? true,
-          is_approved: data.is_approved ?? false,
-          isDeal: data.isDeal ?? false,
-          installments,
-        });
-      }
-
-      // Create new categories
-      for (const cat of categoriesToCreate) {
-        const newCategory = await tx.categories.create({ data: cat });
-        categoryMap.set(cat.name.toLowerCase(), newCategory);
-      }
-
-      // Create new subcategories
-      for (const sub of subcategoriesToCreate) {
-        const category = categoryMap.get(sub.categoryName.toLowerCase());
-        if (!category) {
-          throw new Error(`Category not found for subcategory: ${sub.name}`);
-        }
-        const newSubcategory = await tx.subcategories.create({
-          data: {
-            category_id: category.id,
-            name: sub.name,
-            slugName: sub.slugName,
-            description: sub.description,
-            isActive: sub.isActive,
-          },
-        });
-        subcategoryMap.set(`${category.id}_${sub.name.toLowerCase()}`, newSubcategory);
-      }
-
-      // Update product category_id and subcategory_id
-      for (const product of productsToCreate) {
-        const category = categoryMap.get(product.categoryName.toLowerCase());
-        if (!category) {
-          throw new Error(`Category not found for product: ${product.name}`);
-        }
-        const subcategory = subcategoryMap.get(`${category.id}_${product.subcategoryName.toLowerCase()}`);
-        if (!subcategory) {
-          throw new Error(`Subcategory not found for product: ${product.name}`);
-        }
-        product.category_id = category.id;
-        product.subcategory_id = subcategory.id;
-
-        // Double-check for duplicates after resolving category/subcategory
-        const productKey = `${product.name.toLowerCase()}_${product.category_id}_${product.subcategory_id}`;
-        if (productMap.has(productKey)) {
-          skippedProducts.push(product.name);
-          continue; // Skip if product exists
-        }
-      }
-
-      // Create products
-      for (const product of productsToCreate) {
-        const createdProduct = await tx.product.create({
-          data: {
-            category_id: product.category_id,
-            subcategory_id: product.subcategory_id,
-            name: product.name,
-            slugName: product.slugName,
-            status: product.status,
-            brand: product.brand,
-            short_description: product.short_description,
-            long_description: product.long_description,
-            stock: product.stock,
-            is_approved: product.is_approved,
-            isDeal: product.isDeal,
-            ProductImage: { create: [] },
-            ProductInstallments: {
-              create: product.installments.map(ins => ({
-                totalPrice: ins.totalPrice,
-                monthlyAmount: ins.monthlyAmount,
-                advance: ins.advance,
-                months: ins.months,
-                isActive: ins.isActive,
-              })),
-            },
-          },
-        });
-        results.push(createdProduct);
-      }
-
-      return { created: results, skipped: skippedProducts };
-    }, { timeout: 15000 }); // 15-second timeout
-
-    res.status(201).json({
-      message: `Products created successfully. ${created.created.length} created, ${created.skipped.length} skipped.`,
-      created: created.created,
-      skipped: created.skipped,
-    });
-  } catch (error) {
-    console.error('Error creating bulk products:', error);
-    res.status(500).json({ message: 'Internal server error', error: error.message });
-  }
 };
 
-// Helper function to generate installments (unchanged)
+function titleCase(str) {
+  if (!str) return '';
+  return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+}
+
 function generateInstallments(categoryName, price) {
   const category = categoryName.toLowerCase();
   let plans = [];
@@ -297,7 +115,7 @@ function generateInstallments(categoryName, price) {
   if (category === 'mobiles' && price <= 50000) {
     plans = [
       { months: 3, profit: 0.20, advance: 0.35 },
-      { months: 6, profit: 0.35, advance: 0.24 },
+      { months: 6, profit: 0.35, advance: 0.25 },
       { months: 9, profit: 0.45, advance: 0.20 },
       { months: 12, profit: 0.55, advance: 0.15 },
     ];
@@ -321,19 +139,273 @@ function generateInstallments(categoryName, price) {
   }
 
   return plans.map(plan => {
-    const advanceAmount = Math.round(price * plan.advance * 100) / 100;
-    const profitAmount = Math.round(price * plan.profit * 100) / 100;
-    const totalPrice = Math.round((price + profitAmount) * 100) / 100;
-    const monthlyAmount = Math.round(((totalPrice - advanceAmount) / plan.months) * 100) / 100;
+    const advanceAmount = Math.round(price * plan.advance); // Round to whole number
+    const profitAmount = Math.round(price * plan.profit); // Round to whole number
+    const totalPrice = Math.round(price + profitAmount); // Round to whole number
+    const monthlyAmount = Math.round((totalPrice - advanceAmount) / plan.months); // Round to whole number
     return {
       advance: advanceAmount,
-      totalPrice,
-      monthlyAmount,
+      totalPrice: totalPrice,
+      monthlyAmount: monthlyAmount,
       months: plan.months,
       isActive: true,
     };
   });
 }
+
+const bulkCreateProducts = async (req, res) => {
+  const { products } = req.body;
+  try {
+    if (!Array.isArray(products) || products.length === 0) {
+      return res.status(400).json({ message: 'No products provided' });
+    }
+    const existingCategories = await prisma.categories.findMany({
+      select: { id: true, name: true, slugName: true },
+    });
+    const existingSubcategories = await prisma.subcategories.findMany({
+      select: { id: true, name: true, category_id: true, slugName: true },
+    });
+    const existingProducts = await prisma.product.findMany({
+      select: { id: true, name: true, category_id: true, subcategory_id: true },
+    });
+
+    const categoryMap = new Map(existingCategories.map(cat => [cat.name.toLowerCase(), cat]));
+    const subcategoryMap = new Map(
+      existingSubcategories.map(sub => [`${sub.category_id}_${sub.name.toLowerCase()}`, sub])
+    );
+    const productMap = new Map(
+      existingProducts.map(prod => [
+        `${prod.name.toLowerCase()}_${prod.category_id}_${prod.subcategory_id}`,
+        prod
+      ])
+    );
+
+    const categoriesToCreate = [];
+    const subcategoriesToCreate = [];
+    const productsToCreate = [];
+    const installmentsToCreate = [];
+    const newCategoryKeys = new Set();
+    const newSubcategoryKeys = new Set();
+    const skippedProducts = [];
+
+    for (const data of products) {
+      if (!data.name || !data.category || !data.subcategory || !data.price) {
+        skippedProducts.push(data.name || 'unknown');
+        continue;
+      }
+
+      const categoryName = titleCase(data.category.trim());
+      const subcategoryName = titleCase(data.subcategory.trim());
+      const categoryKey = categoryName.toLowerCase();
+      const subcategoryKey = subcategoryName.toLowerCase();
+
+      let price = data.price.toString().replace(/,/g, '');
+      price = Math.round(parseFloat(price));
+      if (isNaN(price) || price <= 0) {
+        skippedProducts.push(data.name);
+        continue;
+      }
+
+      let category = categoryMap.get(categoryKey);
+      if (!category && !newCategoryKeys.has(categoryKey)) {
+        newCategoryKeys.add(categoryKey);
+        const categorySlug = categoryKey.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        categoriesToCreate.push({
+          name: categoryName,
+          slugName: categorySlug,
+          description: '',
+          isActive: true,
+        });
+      }
+
+      const subKey = `${categoryName.toLowerCase()}_${subcategoryKey}`;
+      let subcategory;
+      if (category) {
+        subcategory = subcategoryMap.get(`${category.id}_${subcategoryKey}`);
+      }
+      if (!subcategory && !newSubcategoryKeys.has(subKey)) {
+        newSubcategoryKeys.add(subKey);
+        const subcategorySlug = subcategoryKey.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        subcategoriesToCreate.push({
+          categoryName,
+          name: subcategoryName,
+          slugName: subcategorySlug,
+          description: '',
+          isActive: true,
+        });
+      }
+
+      let installments;
+      try {
+        installments = generateInstallments(categoryName, price);
+      } catch (err) {
+        skippedProducts.push(data.name);
+        continue;
+      }
+      if (installments.length === 0) {
+        skippedProducts.push(data.name);
+        continue;
+      }
+
+      const slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      productsToCreate.push({
+        categoryName,
+        subcategoryName,
+        name: data.name,
+        slugName: slug,
+        status: data.status ?? true,
+        brand: 'Qist Market',
+        short_description: data.short_description || '',
+        long_description: data.long_description || '',
+        stock: data.stock ?? true,
+        is_approved: data.is_approved ?? false,
+        isDeal: data.isDeal ?? false,
+        price: price,
+        installments,
+      });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Create new categories
+      for (const cat of categoriesToCreate) {
+        const newCategory = await tx.categories.create({ data: cat });
+        categoryMap.set(cat.name.toLowerCase(), newCategory);
+      }
+
+      // Create new subcategories
+      for (const sub of subcategoriesToCreate) {
+        const category = categoryMap.get(sub.categoryName.toLowerCase());
+        if (!category) {
+          throw new Error(`Category not found for subcategory: ${sub.name}`);
+        }
+        const newSubcategory = await tx.subcategories.create({
+          data: {
+            category_id: category.id,
+            name: sub.name,
+            slugName: sub.slugName,
+            description: sub.description,
+            isActive: sub.isActive,
+          },
+        });
+        subcategoryMap.set(`${category.id}_${sub.name.toLowerCase()}`, newSubcategory);
+      }
+    }, { timeout: 15000 });
+
+    // Main transaction for products and installments
+    const { created } = await prisma.$transaction(async (tx) => {
+      const results = [];
+
+      // Prepare products with resolved IDs
+      const productData = [];
+      for (const product of productsToCreate) {
+        const category = categoryMap.get(product.categoryName.toLowerCase());
+        if (!category) {
+          skippedProducts.push(product.name);
+          continue;
+        }
+        const subcategory = subcategoryMap.get(`${category.id}_${product.subcategoryName.toLowerCase()}`);
+        if (!subcategory) {
+          skippedProducts.push(product.name);
+          continue;
+        }
+
+        const productKey = `${product.name.toLowerCase()}_${category.id}_${subcategory.id}`;
+        if (productMap.has(productKey)) {
+          skippedProducts.push(product.name);
+          continue;
+        }
+
+        productData.push({
+          category_id: category.id,
+          subcategory_id: subcategory.id,
+          name: product.name,
+          slugName: product.slugName,
+          status: product.status,
+          brand: product.brand,
+          short_description: product.short_description,
+          long_description: product.long_description,
+          stock: product.stock,
+          is_approved: product.is_approved,
+          isDeal: product.isDeal,
+          price: product.price,
+        });
+
+        // Store installments with placeholder product_id
+        product.installments.forEach(ins => {
+          installmentsToCreate.push({
+            product_id: null,
+            totalPrice: ins.totalPrice, // Already rounded
+            monthlyAmount: ins.monthlyAmount, // Already rounded
+            advance: ins.advance, // Already rounded
+            months: ins.months,
+            isActive: ins.isActive,
+            productKey,
+          });
+        });
+      }
+
+      // Batch create products
+      if (productData.length > 0) {
+        await tx.product.createMany({
+          data: productData,
+          skipDuplicates: true,
+        });
+
+        // Fetch newly created products to get their IDs
+        const newProducts = await tx.product.findMany({
+          where: {
+            OR: productData.map(p => ({
+              name: p.name,
+              category_id: p.category_id,
+              subcategory_id: p.subcategory_id,
+            })),
+          },
+          select: { id: true, name: true, category_id: true, subcategory_id: true },
+        });
+
+        // Map new product IDs to installments
+        const productIdMap = new Map(
+          newProducts.map(p => [`${p.name.toLowerCase()}_${p.category_id}_${p.subcategory_id}`, p.id])
+        );
+
+        // Update installments with correct product IDs
+        const updatedInstallments = installmentsToCreate
+          .filter(ins => productIdMap.has(ins.productKey))
+          .map(ins => ({
+            product_id: productIdMap.get(ins.productKey),
+            totalPrice: ins.totalPrice,
+            monthlyAmount: ins.monthlyAmount,
+            advance: ins.advance,
+            months: ins.months,
+            isActive: ins.isActive,
+          }));
+
+        // Batch create installments
+        if (updatedInstallments.length > 0) {
+          await tx.productInstallments.createMany({
+            data: updatedInstallments,
+            skipDuplicates: true,
+          });
+        }
+
+        results.push(...newProducts);
+      }
+
+      return { created: results };
+    }, { timeout: 60000 });
+
+    res.status(201).json({
+      message: `Products created successfully. ${created.length} created, ${skippedProducts.length} skipped.`,
+      created,
+      skipped: skippedProducts,
+    });
+  } catch (error) {
+    console.error('Error creating bulk products:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  } finally {
+    await prisma.$disconnect();
+  }
+};
 
 const bulkUpdateProducts = async (req, res) => {
   const { ids, updates } = req.body;
@@ -347,13 +419,13 @@ const bulkUpdateProducts = async (req, res) => {
         },
       });
     }
-    // For new images
+
     const uploadedFiles = req.files?.map(file => file.path) || [];
     if (uploadedFiles.length > 0) {
       const newImagesData = ids.flatMap(id => uploadedFiles.map(url => ({ product_id: id, url })));
       await prisma.productImage.createMany({ data: newImagesData });
     }
-    // For new installment (parse from formData if sent)
+
     ids.forEach(id => {
       const newInstStr = req.body[`newInstallment_${id}`];
       if (newInstStr) {
@@ -366,7 +438,7 @@ const bulkUpdateProducts = async (req, res) => {
             advance: parseFloat(newInst.advance),
             months: parseInt(newInst.months),
             isActive: true,
-          }
+          },
         });
       }
     });
@@ -678,7 +750,6 @@ const updateProduct = async (req, res) => {
       category_id,
       subcategory_id,
       name,
-      brand,
       short_description,
       long_description,
       stock,
@@ -693,7 +764,6 @@ const updateProduct = async (req, res) => {
         category_id: category_id ? parseInt(category_id) : undefined,
         subcategory_id: subcategory_id ? parseInt(subcategory_id) : undefined,
         name,
-        brand,
         short_description,
         long_description,
         stock,
@@ -701,7 +771,7 @@ const updateProduct = async (req, res) => {
         is_approved,
         isDeal,
         updatedAt: new Date(),
-      }
+      },
     });
 
     res.status(200).json(updatedProduct);
