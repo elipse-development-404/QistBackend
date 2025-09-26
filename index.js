@@ -17,6 +17,8 @@ const termsAndPrivacyRoutes = require('./src/routes/termsAndPrivacyRoutes');
 const returnsRefundsPolicyRoutes = require('./src/routes/returnsRefundsPolicyRoutes');
 const verificationProcessRoutes = require('./src/routes/verificationProcessRoutes');
 const deliveryPolicyRoutes = require('./src/routes/deliveryPolicyRoutes');
+const visitUsRoutes = require('./src/routes/visitUsRoutes');
+const qaRoutes = require('./src/routes/qaRoutes');
 require('dotenv').config();
 
 const app = express();
@@ -46,6 +48,8 @@ app.use('/api', termsAndPrivacyRoutes);
 app.use('/api', returnsRefundsPolicyRoutes);
 app.use('/api', verificationProcessRoutes);
 app.use('/api', deliveryPolicyRoutes);
+app.use('/api', visitUsRoutes);
+app.use('/api', qaRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

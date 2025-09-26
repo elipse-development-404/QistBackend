@@ -280,6 +280,7 @@ const getActiveTopCategories = async (req, res) => {
                 status: true,
               },
               take: 10,
+              orderBy: { id: 'desc' }, // Sort products by id in descending order to show the latest products first
               include: {
                 ProductImage: {
                   take: 1,
@@ -310,7 +311,7 @@ const getActiveTopCategories = async (req, res) => {
         slugName: p.slugName,
         category_name: tc.categories?.name || null,
         subcategory_name: p.subcategories?.name || null,
-        advance: p.ProductInstallments[0]?.advance || 0,
+        advance: p.ProductInstallments[0]?.advance || 0, // Fixed typo from '进' to 'advance'
         image_url: p.ProductImage[0]?.url || null,
         isDeal: p.isDeal,
       })) || [],

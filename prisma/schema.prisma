@@ -298,3 +298,31 @@ model DeliveryPolicy {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model VisitUs {
+  id        Int          @id @default(autoincrement())
+  title     String       @db.VarChar(255)
+  isActive  Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  maps      VisitUsMap[] @relation("VisitUsMaps")
+}
+
+model VisitUsMap {
+  id        Int      @id @default(autoincrement())
+  visitUsId Int
+  map_embed String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  visitUs   VisitUs  @relation("VisitUsMaps", fields: [visitUsId], references: [id], onDelete: Cascade)
+  @@index([visitUsId])
+}
+
+model QuestionAnswer { 
+  id        Int @id @default(autoincrement()) 
+  question  String @db.Text 
+  answer    String @db.Text
+  status    String @default("active") 
+  createdAt DateTime @default(now()) 
+  updatedAt DateTime @updatedAt 
+}
