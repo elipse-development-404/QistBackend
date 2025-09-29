@@ -19,6 +19,7 @@ const verificationProcessRoutes = require('./src/routes/verificationProcessRoute
 const deliveryPolicyRoutes = require('./src/routes/deliveryPolicyRoutes');
 const visitUsRoutes = require('./src/routes/visitUsRoutes');
 const qaRoutes = require('./src/routes/qaRoutes');
+const agreementRoutes = require('./src/routes/agreementRoutes');
 require('dotenv').config();
 
 const app = express();
@@ -50,6 +51,7 @@ app.use('/api', verificationProcessRoutes);
 app.use('/api', deliveryPolicyRoutes);
 app.use('/api', visitUsRoutes);
 app.use('/api', qaRoutes);
+app.use('/api', agreementRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

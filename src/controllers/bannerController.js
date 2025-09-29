@@ -91,8 +91,8 @@ const createBanner = async (req, res) => {
   try {
     const banner = await prisma.banner.create({
       data: {
-        image_url: image.path, // Cloudinary URL
-        cloudinary_id: image.filename, // Cloudinary public ID
+        image_url: image.path,
+        cloudinary_id: image.filename,
         product_url,
         isActive: Boolean(isActive),
       },

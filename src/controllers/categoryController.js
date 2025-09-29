@@ -123,6 +123,18 @@ const getLimitOnlyTrueCategories = async (req, res) => {
   }
 };
 
+const getTrueCategories = async (req, res) => {
+  try {
+    const categories = await prisma.categories.findMany({
+      where: { isActive: true },
+    });
+    res.status(200).json(categories);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to fetch categories" });
+  }
+};
+
 const createCategory = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -218,5 +230,6 @@ module.exports = {
   deleteCategory,
   toggleCategoryActive,
   getAllPlainCategory,
-  getLimitOnlyTrueCategories
+  getLimitOnlyTrueCategories,
+  getTrueCategories
 };

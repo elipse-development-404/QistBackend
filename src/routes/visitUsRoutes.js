@@ -32,6 +32,7 @@ router.post(
     body('title').notEmpty().withMessage('Title is required'),
     body('maps').isArray({ min: 1 }).withMessage('At least one map embed code is required'),
     body('maps.*.map_embed').notEmpty().withMessage('Map embed code is required'),
+    body('maps.*.address').notEmpty().withMessage('Address is required for each map'),
     body('isActive').optional().isBoolean().withMessage('isActive must be a boolean'),
   ],
   createVisitUs
@@ -44,6 +45,7 @@ router.put(
     body('title').notEmpty().withMessage('Title is required'),
     body('maps').isArray({ min: 1 }).withMessage('At least one map embed code is required'),
     body('maps.*.map_embed').notEmpty().withMessage('Map embed code is required'),
+    body('maps.*.address').notEmpty().withMessage('Address is required for each map'),
     body('isActive').optional().isBoolean().withMessage('isActive must be a boolean'),
   ],
   updateVisitUs

@@ -10,7 +10,7 @@ const getVisitUs = async (req, res) => {
     search = '',
     status = 'all',
     sort = 'id',
-    order = 'desc',
+    order = 'asc',
   } = req.query;
   const skip = (page - 1) * limit;
   const take = Number(limit);
@@ -22,6 +22,7 @@ const getVisitUs = async (req, res) => {
       where.AND.push({
         OR: [
           { title: { contains: search, mode: 'insensitive' } },
+          { maps: { some: { address: { contains: search, mode: 'insensitive' } } } },
           { id: isNaN(search) ? undefined : Number(search) },
         ],
       });
@@ -81,7 +82,8 @@ const createVisitUs = async (req, res) => {
         isActive: Boolean(isActive),
         maps: {
           create: maps.map((map) => ({
-            map_embed: map.map_embed, // No need to unescape, as frontend sends raw iframe
+            map_embed: map.map_embed,
+            address: map.address,
           })),
         },
       },
@@ -117,19 +119,18 @@ const updateVisitUs = async (req, res) => {
       return res.status(404).json({ error: 'Visit us item not found' });
     }
 
-    // Delete existing maps
     await prisma.visitUsMap.deleteMany({
       where: { visitUsId: Number(id) },
     });
 
-    // Update item and create new maps
     const updated = await prisma.visitUs.update({
       where: { id: Number(id) },
       data: {
         title,
         maps: {
           create: maps.map((map) => ({
-            map_embed: map.map_embed, // No need to unescape
+            map_embed: map.map_embed,
+            address: map.address,
           })),
         },
       },

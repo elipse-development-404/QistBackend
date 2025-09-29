@@ -312,6 +312,7 @@ model VisitUsMap {
   id        Int      @id @default(autoincrement())
   visitUsId Int
   map_embed String   @db.Text
+  address   String @db.Text
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   visitUs   VisitUs  @relation("VisitUsMaps", fields: [visitUsId], references: [id], onDelete: Cascade)
@@ -325,4 +326,22 @@ model QuestionAnswer {
   status    String @default("active") 
   createdAt DateTime @default(now()) 
   updatedAt DateTime @updatedAt 
+}
+
+model Agreement { 
+  id        Int @id @default(autoincrement()) 
+  createdAt DateTime @default(now()) 
+  updatedAt DateTime @updatedAt 
+  images    AgreementImage[] @relation("AgreementImages") 
+}
+
+model AgreementImage { 
+  id            Int @id @default(autoincrement()) 
+  agreementId   Int 
+  image_url     String @db.Text 
+  cloudinary_id String @db.VarChar(255) 
+  createdAt     DateTime @default(now()) 
+  updatedAt     DateTime @updatedAt 
+  agreement     Agreement @relation("AgreementImages", fields: [agreementId], references: [id], onDelete: Cascade) 
+  @@index([agreementId]) 
 }
