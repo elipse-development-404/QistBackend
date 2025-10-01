@@ -107,6 +107,7 @@ model Customers {
   phone       String?              @unique
   cnic        String?              @db.VarChar(13) @unique
   isVerified  Boolean              @default(false)
+  isActive    Boolean              @default(true)
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
   verificationCodes VerificationCode[]
@@ -153,7 +154,7 @@ model CreateOrder {
   rejectionReason String?   @db.Text
   createdAt      DateTime?  @default(now()) @db.Timestamp(0)
   status         OrderStatus @default(Pending)
-  tokenNumber    String     @unique @db.VarChar(255)  // New field for token
+  tokenNumber    String     @unique @db.VarChar(255)
   customer       Customers? @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
   @@index([customerId])
@@ -344,4 +345,31 @@ model AgreementImage {
   updatedAt     DateTime @updatedAt 
   agreement     Agreement @relation("AgreementImages", fields: [agreementId], references: [id], onDelete: Cascade) 
   @@index([agreementId]) 
+}
+
+model OrganizationSettings {
+  id            Int                       @id @default(autoincrement())
+  name          String                    @db.VarChar(255)
+  logo_url      String?                   @db.Text
+  cloudinary_id String?                   @db.VarChar(255)
+  email         String?                   @db.VarChar(255)
+  phone         String?                   @db.VarChar(50)
+  address       String?                   @db.Text
+  map_iframe    String?                   @db.Text
+  isActive      Boolean                   @default(true)
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+  socialLinks   OrganizationSocialLink[]
+}
+
+model OrganizationSocialLink {
+  id          Int                    @id @default(autoincrement())
+  settingsId  Int
+  url         String                 @db.Text
+  svg         String                 @db.Text
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  settings    OrganizationSettings   @relation(fields: [settingsId], references: [id], onDelete: Cascade)
+
+  @@index([settingsId])
 }

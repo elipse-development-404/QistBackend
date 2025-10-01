@@ -15,7 +15,7 @@ const FROM_EMAIL = process.env.FROM_EMAIL;
 const transporter = nodemailer.createTransport({
   host: SMTP_HOST,
   port: SMTP_PORT,
-  secure: false, // Use true for port 465
+  secure: false,
   auth: {
     user: SMTP_USER,
     pass: SMTP_PASS,
@@ -261,6 +261,10 @@ const login = async (req, res) => {
     const isPasswordValid = await bcrypt.compare(password, customer.password);
     if (!isPasswordValid) {
       return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    if (!customer.isActive) {
+      return res.status(403).json({ error: "Account is disabled. Please contact the administrator." });
     }
 
     if (!customer.isVerified) {

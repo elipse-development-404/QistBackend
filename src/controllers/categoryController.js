@@ -126,6 +126,7 @@ const getLimitOnlyTrueCategories = async (req, res) => {
 const getTrueCategories = async (req, res) => {
   try {
     const categories = await prisma.categories.findMany({
+      take: 18,
       where: { isActive: true },
     });
     res.status(200).json(categories);
@@ -140,8 +141,6 @@ const createCategory = async (req, res) => {
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
   }
-
-  
 
   const { name, description, isActive=true,icon  } = req.body;
   try {

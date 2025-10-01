@@ -1,12 +1,10 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-const bcrypt = require("bcryptjs"); // ✅ use bcryptjs for cross-platform safety
+const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-// const { PrismaClient } = require("@prisma/client");
 require("dotenv").config();
 
-// const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET;
 
 const isValidEmail = (email) => {
