@@ -1,9 +1,25 @@
-const { validationResult } = require('express-validator');
+const axios = require('axios');
 const { PrismaClient } = require('@prisma/client');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 
 const prisma = new PrismaClient();
+
+const isValidEmail = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+const WATI_ACCESS_TOKEN = process.env.WATI_ACCESS_TOKEN;
+const WATI_ORDER_CONFIRMATION_TEMPLATE_NAME = process.env.WATI_ORDER_CONFIRMATION_TEMPLATE_NAME;
+const WATI_ORDER_CONFIRMATION_BROADCAST_NAME = process.env.WATI_ORDER_CONFIRMATION_BROADCAST_NAME;
+const WATI_ORDER_TRACKING_TEMPLATE_NAME = process.env.WATI_ORDER_TRACKING_TEMPLATE_NAME;
+const WATI_ORDER_TRACKING_BROADCAST_NAME = process.env.WATI_ORDER_TRACKING_BROADCAST_NAME;
+const WATI_ORDER_CANCEL_TEMPLATE_NAME = process.env.WATI_ORDER_CANCEL_TEMPLATE_NAME;
+const WATI_ORDER_CANCEL_BROADCAST_NAME = process.env.WATI_ORDER_CANCEL_BROADCAST_NAME;
+const WATI_ORDER_REJECTED_TEMPLATE_NAME = process.env.WATI_ORDER_REJECTED_TEMPLATE_NAME;
+const WATI_ORDER_REJECTED_BROADCAST_NAME = process.env.WATI_ORDER_REJECTED_BROADCAST_NAME;
+const WATI_BASE_URL = process.env.WATI_BASE_URL;
 
 const sendEmail = async (to, subject, orderData) => {
   const transporter = nodemailer.createTransport({
@@ -17,6 +33,8 @@ const sendEmail = async (to, subject, orderData) => {
   });
 
   let orderNoticeMessage = '';
+  const isFullDetails = subject === 'Order Confirmation';
+
   if (subject === 'Order Confirmation') {
     orderNoticeMessage = 'Your order has been successfully placed!';
   } else if (subject === 'Order Tracking Details') {
@@ -24,12 +42,11 @@ const sendEmail = async (to, subject, orderData) => {
   } else if (subject === 'Order Cancel Request Approved') {
     orderNoticeMessage = 'Your order cancel request has been approved. Your order is now cancelled.';
   } else if (subject.includes('Updated to Rejected')) {
-    orderNoticeMessage = `Your order has been rejected. Reason: ${orderData.rejectionReason || 'N/A'}`;
+    orderNoticeMessage = `Your order has been rejected.`;
   } else {
     orderNoticeMessage = `Order update. Current Order Status: ${orderData.status}`;
   }
 
-  // HTML email template
   const htmlContent = `
     <!DOCTYPE html>
     <html lang="en">
@@ -66,20 +83,25 @@ const sendEmail = async (to, subject, orderData) => {
           </svg>
           <p>${orderNoticeMessage}</p>
         </div>
-        ${orderData.rejectionReason && orderData.status === "Rejected" ? `
+        ${orderData.status === 'Rejected' && orderData.rejectionReason ? `
           <div class="order-detail-wrap">
             <h5 class="fw-bold text-danger">Rejection Reason</h5>
             <p>${orderData.rejectionReason}</p>
           </div>
-        ` : ""}
+        ` : ''}
         <ul class="order-overview-list">
           <li>Order number: <strong>${orderData.id}</strong></li>
-          <li>Tracking Number: <strong>${orderData.tokenNumber}</strong></li>
+          <li>Tracking Number: <strong>${orderData.tokenNumber || ''}</strong></li>
           <li>Date: <strong>${new Date(orderData.createdAt).toLocaleDateString()}</strong></li>
-          <li>Status: <strong>${orderData.status}</strong></li>
-          <li>Advance: <strong>Rs. ${orderData.advanceAmount}</strong></li>
-          <li>Payment method: <strong>${orderData.paymentMethod}</strong></li>
+          <li>Status: <strong>${orderData.status || ''}</strong></li>
+          <li>Product: <strong>${orderData.productName || ''}</strong></li>
+          <li>Advance: <strong>Rs. ${orderData.advanceAmount || ''}</strong></li>
+          <li>Area: <strong>${orderData.area || ''}</strong></li>
+          ${isFullDetails ? `
+            <li>Payment method: <strong>${orderData.paymentMethod || ''}</strong></li>
+          ` : ''}
         </ul>
+        ${isFullDetails ? `
         <div class="order-detail-wrap">
           <h5 class="fw-bold">Order Details</h5>
           <table class="table">
@@ -91,14 +113,14 @@ const sendEmail = async (to, subject, orderData) => {
             </thead>
             <tbody>
               <tr>
-                <td>${orderData.productName}</td>
-                <td><span class="fw-bold">Rs. ${orderData.advanceAmount}</span></td>
+                <td>${orderData.productName || ''}</td>
+                <td><span class="fw-bold">Rs. ${orderData.advanceAmount || ''}</span></td>
               </tr>
             </tbody>
             <tfoot>
               <tr>
                 <th>Payment method:</th>
-                <td>${orderData.paymentMethod}</td>
+                <td>${orderData.paymentMethod || ''}</td>
               </tr>
             </tfoot>
           </table>
@@ -113,10 +135,10 @@ const sendEmail = async (to, subject, orderData) => {
             </thead>
             <tbody>
               <tr>
-                <td><span class="fw-bold">Rs. ${orderData.advanceAmount}</span></td>
-                <td><span class="fw-bold">Rs. ${orderData.monthlyAmount}</span></td>
-                <td><span class="fw-bold">Months: ${orderData.months}</span></td>
-                <td><span class="fw-bold">Rs. ${orderData.totalDealValue}</span></td>
+                <td><span class="fw-bold">Rs. ${orderData.advanceAmount || ''}</span></td>
+                <td><span class="fw-bold">Rs. ${orderData.monthlyAmount || ''}</span></td>
+                <td><span class="fw-bold">Months: ${orderData.months || ''}</span></td>
+                <td><span class="fw-bold">Rs. ${orderData.totalDealValue || ''}</span></td>
               </tr>
             </tbody>
           </table>
@@ -133,17 +155,23 @@ const sendEmail = async (to, subject, orderData) => {
                 <td><span class="fw-bold">Phone:</span></td>
                 <td><span class="fw-bold">${orderData.phone}</span></td>
               </tr>
+              ${orderData.email ? `
               <tr>
                 <td><span class="fw-bold">Email:</span></td>
                 <td><span class="fw-bold">${orderData.email}</span></td>
               </tr>
+              ` : ''}
               <tr>
                 <td><span class="fw-bold">Address:</span></td>
-                <td><span class="fw-bold">${orderData.address}</span></td>
+                <td><span class="fw-bold">${orderData.address || ''}</span></td>
               </tr>
               <tr>
                 <td><span class="fw-bold">City:</span></td>
-                <td><span class="fw-bold">${orderData.city}</span></td>
+                <td><span class="fw-bold">${orderData.city || ''}</span></td>
+              </tr>
+              <tr>
+                <td><span class="fw-bold">Area:</span></td>
+                <td><span class="fw-bold">${orderData.area || ''}</span></td>
               </tr>
             </tbody>
           </table>
@@ -154,17 +182,114 @@ const sendEmail = async (to, subject, orderData) => {
             <p>${orderData.orderNotes}</p>
           </div>
         ` : ''}
+        ` : ''}
       </div>
     </body>
     </html>
   `;
 
-  await transporter.sendMail({
-    from: process.env.FROM_EMAIL,
-    to,
-    subject,
-    html: htmlContent,
-  });
+  try {
+    await transporter.sendMail({
+      from: process.env.FROM_EMAIL,
+      to,
+      subject,
+      html: htmlContent,
+    });
+    console.log(`Email sent successfully to ${to}`);
+  } catch (error) {
+    console.error(`Error sending email for ${subject}:`, error);
+    throw new Error('Failed to send email');
+  }
+};
+
+const sendOrderWhatsApp = async (phone, subject, orderData) => {
+  let waPhone = phone.startsWith('0') ? '92' + phone.slice(1) : phone.startsWith('+92') ? phone.slice(1) : phone;
+  if (!waPhone.startsWith('92')) {
+    throw new Error('Invalid phone format for WhatsApp');
+  }
+  const url = `${WATI_BASE_URL}/api/v1/sendTemplateMessage?whatsappNumber=${waPhone}`;
+
+  let templateName, broadcastName, orderNoticeMessage, parameters;
+
+  if (subject === 'Order Confirmation') {
+    templateName = WATI_ORDER_CONFIRMATION_TEMPLATE_NAME;
+    broadcastName = WATI_ORDER_CONFIRMATION_BROADCAST_NAME;
+    orderNoticeMessage = 'Your order has been successfully placed!';
+    parameters = [
+      { name: '1', value: `${orderData.firstName} ${orderData.lastName}` },
+      { name: '2', value: orderData.id.toString() },
+      { name: '3', value: orderData.tokenNumber },
+      { name: '4', value: new Date(orderData.createdAt).toLocaleDateString() },
+      { name: '5', value: orderData.status },
+      { name: '6', value: orderData.productName },
+      { name: '7', value: Number(orderData.advanceAmount).toLocaleString() },
+      { name: '8', value: Number(orderData.monthlyAmount).toLocaleString() },
+      { name: '9', value: orderData.months?.toString() },
+      { name: '10', value: Number(orderData.totalDealValue).toLocaleString() },
+      { name: '11', value: orderData.paymentMethod },
+      { name: '12', value: orderData.address },
+      { name: '13', value: orderData.city },
+      { name: '14', value: orderData.area },
+    ];
+  } else if (subject === 'Order Tracking Details') {
+    templateName = WATI_ORDER_TRACKING_TEMPLATE_NAME;
+    broadcastName = WATI_ORDER_TRACKING_BROADCAST_NAME;
+    orderNoticeMessage = 'Order details retrieved successfully.';
+    parameters = [
+      { name: '1', value: `${orderData.firstName} ${orderData.lastName}` },
+      { name: '2', value: orderData.id.toString() },
+      { name: '3', value: orderData.tokenNumber },
+      { name: '4', value: new Date(orderData.createdAt).toLocaleDateString() },
+      { name: '5', value: orderData.status },
+      { name: '6', value: orderData.productName },
+      { name: '7', value: Number(orderData.advanceAmount).toLocaleString() },
+    ];
+  } else if (subject === 'Order Cancel Request Approved') {
+    templateName = WATI_ORDER_CANCEL_TEMPLATE_NAME;
+    broadcastName = WATI_ORDER_CANCEL_BROADCAST_NAME;
+    orderNoticeMessage = 'Your order cancel request has been approved. Your order is now cancelled.';
+    parameters = [
+      { name: '1', value: `${orderData.firstName} ${orderData.lastName}` },
+      { name: '2', value: orderData.id.toString() },
+      { name: '3', value: orderData.tokenNumber || '' },
+      { name: '4', value: new Date(orderData.createdAt).toLocaleDateString() },
+      { name: '5', value: orderData.status || '' },
+      { name: '6', value: orderData.area || '' },
+    ];
+  } else if (subject.includes('Updated to Rejected')) {
+    templateName = WATI_ORDER_REJECTED_TEMPLATE_NAME;
+    broadcastName = WATI_ORDER_REJECTED_BROADCAST_NAME;
+    orderNoticeMessage = `Your order has been rejected.`;
+    parameters = [
+      { name: '1', value: `${orderData.firstName} ${orderData.lastName}` },
+      { name: '2', value: orderData.id.toString() },
+      { name: '3', value: orderData.tokenNumber || '' },
+      { name: '4', value: new Date(orderData.createdAt).toLocaleDateString() },
+      { name: '5', value: orderData.status || '' },
+      { name: '6', value: orderData.area || '' },
+      { name: '7', value: orderData.rejectionReason || '' },
+    ];
+  } else {
+    throw new Error('Invalid subject for WhatsApp notification');
+  }
+
+  const body = {
+    template_name: templateName,
+    broadcast_name: broadcastName,
+    parameters,
+  };
+
+  try {
+    const response = await axios.post(url, body, {
+      headers: {
+        'Authorization': `Bearer ${WATI_ACCESS_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error('Failed to send WhatsApp message');
+  }
 };
 
 const getOrders = async (req, res) => {
@@ -407,21 +532,9 @@ const createOrders = async (req, res) => {
   try {
     const data = req.body;
 
-    // Validate required fields
     const requiredFields = [
-      'email',
-      'phone',
-      'firstName',
-      'lastName',
-      'cnic',
-      'city',
-      'address',
-      'paymentMethod',
-      'productName',
-      'totalDealValue',
-      'advanceAmount',
-      'monthlyAmount',
-      'months'
+      'phone', 'firstName', 'lastName', 'cnic', 'city', 'area', 'address', 'paymentMethod',
+      'productName', 'totalDealValue', 'advanceAmount', 'monthlyAmount', 'months'
     ];
     for (const field of requiredFields) {
       if (data[field] === undefined || data[field] === null) {
@@ -429,7 +542,10 @@ const createOrders = async (req, res) => {
       }
     }
 
-    // Validate field types and values
+    if (data.email && !isValidEmail(data.email)) {
+      return res.status(400).json({ error: "Invalid email format" });
+    }
+
     if (typeof data.productName !== 'string' || data.productName.trim() === '') {
       return res.status(400).json({ error: 'productName must be a non-empty string' });
     }
@@ -446,24 +562,23 @@ const createOrders = async (req, res) => {
       return res.status(400).json({ error: 'months must be a non-negative integer' });
     }
 
-    // If authenticated, set customerId
     let customerId = null;
     if (data.customerID) {
       customerId = data.customerID;
     }
 
-    // Generate unique token (8-character alphanumeric)
     const tokenNumber = crypto.randomBytes(4).toString('hex').toUpperCase();
 
     const newOrder = await prisma.createOrder.create({
       data: {
         customerId,
-        email: data.email,
+        email: data.email || null,
         phone: data.phone,
         firstName: data.firstName,
         lastName: data.lastName,
         cnic: data.cnic,
         city: data.city,
+        area: data.area,
         address: data.address,
         orderNotes: data.orderNotes || null,
         paymentMethod: data.paymentMethod,
@@ -476,8 +591,8 @@ const createOrders = async (req, res) => {
       },
     });
 
-    // Send confirmation email
-    await sendEmail(newOrder.email, 'Order Confirmation', newOrder);
+    await sendOrderWhatsApp(newOrder.phone, 'Order Confirmation', newOrder);
+    if (newOrder.email) await sendEmail(newOrder.email, 'Order Confirmation', newOrder);
 
     res.status(201).json(newOrder);
   } catch (error) {
@@ -494,7 +609,6 @@ const trackOrder = async (req, res) => {
       return res.status(400).json({ error: 'order no or token no and phone are required' });
     }
 
-    // Find order by token or ID, and phone
     const order = await prisma.createOrder.findFirst({
       where: {
         phone,
@@ -509,8 +623,8 @@ const trackOrder = async (req, res) => {
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    // Send tracking email
-    await sendEmail(order.email, 'Order Tracking Details', order);
+    await sendOrderWhatsApp(order.phone, 'Order Tracking Details', order);
+    if (order.email) await sendEmail(order.email, 'Order Tracking Details', order);
 
     res.status(200).json(order);
   } catch (error) {
@@ -585,7 +699,8 @@ const approveCancel = async (req, res) => {
       where: { id: Number(orderId) },
       data: { cancelRequest: 'approved', status: 'Cancelled' },
     });
-    await sendEmail(updatedOrder.email, 'Order Cancel Request Approved', updatedOrder);
+    await sendOrderWhatsApp(updatedOrder.phone, 'Order Cancel Request Approved', updatedOrder);
+    if (updatedOrder.email) await sendEmail(updatedOrder.email, 'Order Cancel Request Approved', updatedOrder);
     res.status(200).json(updatedOrder);
   } catch (error) {
     console.error(error);
@@ -615,7 +730,8 @@ const updateOrderStatus = async (req, res) => {
       data,
     });
 
-    await sendEmail(updatedOrder.email, `Order Status Updated to ${status}`, updatedOrder);
+    await sendOrderWhatsApp(updatedOrder.phone, `Order Status Updated to ${status}`, updatedOrder);
+    if (updatedOrder.email) await sendEmail(updatedOrder.email, `Order Status Updated to ${status}`, updatedOrder);
 
     res.status(200).json(updatedOrder);
   } catch (error) {

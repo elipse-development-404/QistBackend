@@ -1,4 +1,3 @@
-// routes/orderRoutes.js
 const express = require('express');
 const { body, query } = require('express-validator');
 const { authenticateToken } = require('../middlewares/authMiddleware');
@@ -15,6 +14,7 @@ const {
   updateOrderStatus,
   getRejectedOrders
 } = require('../controllers/orderController');
+const { checkPhoneVerified, sendCheckoutOTP, verifyCheckoutOTP } = require('../controllers/authCustomerController');
 
 const router = express.Router();
 
@@ -101,5 +101,9 @@ router.get(
   ],
   getRejectedOrders
 );
+
+router.get('/check-phone-verified', checkPhoneVerified);
+router.post('/send-checkout-otp', sendCheckoutOTP);
+router.post('/verify-checkout-otp', verifyCheckoutOTP);
 
 module.exports = router;

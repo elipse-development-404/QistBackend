@@ -65,7 +65,6 @@ const login = async (req, res) => {
   }
 
   try {
-    // ✅ find admin by email
     const admin = await prisma.admins.findUnique({
       where: { email },
     });
@@ -74,17 +73,14 @@ const login = async (req, res) => {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // ✅ check password
     const isPasswordValid = await bcrypt.compare(password, admin.password);
     if (!isPasswordValid) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // ✅ generate JWT
     const token = jwt.sign(
       { adminId: admin.id, email: admin.email },
       JWT_SECRET,
-      { expiresIn: "1h" }
     );
 
     res.json({ token, admin: { fullName: admin.fullName, email: admin.email } });
@@ -94,8 +90,4 @@ const login = async (req, res) => {
   }
 };
 
-const getDashboard = (req, res) => {
-  res.json({ message: "Welcome to the admin dashboard", admin: req.admin });
-};
-
-module.exports = { signup, login, getDashboard };
+module.exports = { signup, login };

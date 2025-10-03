@@ -100,11 +100,11 @@ model admins {
 
 model Customers {
   id          Int                  @id @default(autoincrement())
-  email       String               @unique
-  password    String
+  email       String?               @unique
+  password    String?
   firstName   String?
   lastName    String?
-  phone       String?              @unique
+  phone       String               @unique
   cnic        String?              @db.VarChar(13) @unique
   isVerified  Boolean              @default(false)
   isActive    Boolean              @default(true)
@@ -136,12 +136,13 @@ model PasswordResetAttempt {
 model CreateOrder {
   id             Int        @id @default(autoincrement())
   customerId     Int?
-  email          String     @db.VarChar(255)
+  email          String?     @db.VarChar(255)
   phone          String     @db.VarChar(20)
   firstName      String     @db.VarChar(100)
   lastName       String     @db.VarChar(100)
   cnic           String     @db.VarChar(13)
   city           String     @db.VarChar(100)
+  area           String     @db.VarChar(100)
   address        String     @db.Text
   orderNotes     String?    @db.Text
   paymentMethod  String     @db.VarChar(50)
@@ -178,6 +179,7 @@ model Address {
   customerId Int
   address1   String
   city       String
+  area       String
   isDefault  Boolean   @default(false)
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
