@@ -105,6 +105,7 @@ model Customers {
   firstName   String?
   lastName    String?
   phone       String               @unique
+  alternativePhone String?
   cnic        String?              @db.VarChar(13) @unique
   isVerified  Boolean              @default(false)
   isActive    Boolean              @default(true)
@@ -138,6 +139,7 @@ model CreateOrder {
   customerId     Int?
   email          String?     @db.VarChar(255)
   phone          String     @db.VarChar(20)
+  alternativePhone String?
   firstName      String     @db.VarChar(100)
   lastName       String     @db.VarChar(100)
   cnic           String     @db.VarChar(13)

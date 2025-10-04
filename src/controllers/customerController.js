@@ -6,7 +6,7 @@ const getProfile = async (req, res) => {
   try {
     const customer = await prisma.customers.findUnique({
       where: { id: req.customer.customerId },
-      select: { id: true, email: true, firstName: true, lastName: true, phone: true, cnic: true },
+      select: { id: true, email: true, firstName: true, lastName: true, phone: true, alternativePhone: true,  cnic: true },
     });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
@@ -19,28 +19,29 @@ const getProfile = async (req, res) => {
 };
 
 const updateProfile = async (req, res) => {
-  const { firstName, lastName, phone, cnic } = req.body;
+  const { firstName, lastName, phone, alternativePhone, cnic, email } = req.body;
   try {
     const customer = await prisma.customers.findUnique({
       where: { id: req.customer.customerId },
-      select: { cnic: true },
+      select: { cnic: true, email: true },
     });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    // Only allow cnic update if it's currently null
     const updateData = {
       firstName,
       lastName,
       phone,
+      alternativePhone,
       ...(customer.cnic === null && cnic ? { cnic } : {}),
+      ...(customer.email === null && email ? { email } : {}),
     };
 
     const updatedCustomer = await prisma.customers.update({
       where: { id: req.customer.customerId },
       data: updateData,
-      select: { id: true, email: true, firstName: true, lastName: true, phone: true, cnic: true },
+      select: { id: true, email: true, firstName: true, lastName: true, phone: true, alternativePhone: true, cnic: true },
     });
     res.json(updatedCustomer);
   } catch (error) {

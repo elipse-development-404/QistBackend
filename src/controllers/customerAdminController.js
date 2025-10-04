@@ -83,18 +83,25 @@ const updateCustomer = async (req, res) => {
   try {
     const customer = await prisma.customers.findUnique({ where: { id: Number(id) } });
     if (!customer) {
-      return res.status(404).json({ error: "Customer not found" });
+      return res.status(404).json({ error: 'Customer not found' });
     }
 
     const updated = await prisma.customers.update({
       where: { id: Number(id) },
-      data: { firstName, lastName, email, phone, cnic, isActive },
+      data: {
+        firstName: firstName ?? customer.firstName,
+        lastName: lastName ?? customer.lastName,
+        email: email !== undefined ? email : customer.email,
+        phone: phone ?? customer.phone,
+        cnic: cnic ?? customer.cnic,
+        isActive: isActive ?? customer.isActive,
+      },
     });
 
     res.status(200).json(updated);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Failed to update customer" });
+    res.status(500).json({ error: 'Failed to update customer' });
   }
 };
 

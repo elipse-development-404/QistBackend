@@ -311,6 +311,7 @@ const login = async (req, res) => {
         firstName: customer.firstName,
         lastName: customer.lastName,
         phone: customer.phone,
+        alternativePhone: customer.alternativePhone,
         cnic: customer.cnic,
       },
       JWT_SECRET,
@@ -324,6 +325,7 @@ const login = async (req, res) => {
         lastName: customer.lastName,
         email: customer.email,
         phone: customer.phone,
+        alternativePhone: customer.alternativePhone,
         cnic: customer.cnic,
       },
     });
@@ -440,53 +442,4 @@ const reset = async (req, res) => {
   }
 };
 
-const checkPhoneVerified = async (req, res) => {
-  const { phone } = req.query;
-  if (!phone || !/^\+?\d{11}$/.test(phone)) {
-    return res.status(400).json({ error: "Invalid phone number" });
-  }
-  const customer = await prisma.customers.findUnique({ where: { phone } });
-  res.json({ verified: !!(customer && customer.isVerified) });
-};
-
-const sendCheckoutOTP = async (req, res) => {
-  const { phone } = req.body;
-  if (!phone || !/^\+?\d{11}$/.test(phone)) {
-    return res.status(400).json({ error: "Invalid phone number" });
-  }
-  let customer = await prisma.customers.findUnique({ where: { phone } });
-  if (!customer) {
-    customer = await prisma.customers.create({ data: { phone, isVerified: false } });
-  }
-  if (customer.isVerified) {
-    return res.status(400).json({ error: "Phone already verified" });
-  }
-  const code = generateCode();
-  const expiry = new Date(Date.now() + 10 * 60 * 1000);
-  await prisma.verificationCode.create({
-    data: { customerId: customer.id, code, expiry, isForReset: false },
-  });
-  await sendVerificationWhatsApp(phone, code);
-  res.json({ message: "Verification code sent to WhatsApp." });
-};
-
-const verifyCheckoutOTP = async (req, res) => {
-  const { phone, code } = req.body;
-  if (!phone || !code) {
-    return res.status(400).json({ error: "Phone and code required" });
-  }
-  const customer = await prisma.customers.findUnique({ where: { phone } });
-  if (!customer) return res.status(404).json({ error: "Customer not found" });
-  const verification = await prisma.verificationCode.findFirst({
-    where: { customerId: customer.id, isForReset: false },
-    orderBy: { createdAt: "desc" },
-  });
-  if (!verification || verification.code !== code || new Date() > verification.expiry) {
-    return res.status(400).json({ error: "Invalid or expired code" });
-  }
-  await prisma.customers.update({ where: { id: customer.id }, data: { isVerified: true } });
-  await prisma.verificationCode.delete({ where: { id: verification.id } });
-  res.json({ message: "Phone verified successfully." });
-};
-
-module.exports = { signup, verify, resend, login, forgot, reset, checkPhoneVerified, sendCheckoutOTP, verifyCheckoutOTP };
+module.exports = { signup, verify, resend, login, forgot, reset };

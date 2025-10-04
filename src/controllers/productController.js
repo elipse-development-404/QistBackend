@@ -108,6 +108,10 @@ function titleCase(str) {
   return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 }
 
+function roundUpToNearest50(num) {
+  return Math.ceil(num / 50) * 50;
+}
+
 function generateInstallments(categoryName, price) {
   const category = categoryName.toLowerCase();
   let plans = [];
@@ -139,10 +143,10 @@ function generateInstallments(categoryName, price) {
   }
 
   return plans.map(plan => {
-    const advanceAmount = Math.round(price * plan.advance); // Round to whole number
-    const profitAmount = Math.round(price * plan.profit); // Round to whole number
-    const totalPrice = Math.round(price + profitAmount); // Round to whole number
-    const monthlyAmount = Math.round((totalPrice - advanceAmount) / plan.months); // Round to whole number
+    const advanceAmount = roundUpToNearest50(price * plan.advance);
+    const profitAmount = roundUpToNearest50(price * plan.profit);
+    const monthlyAmount = roundUpToNearest50((price + profitAmount - advanceAmount) / plan.months);
+    const totalPrice = roundUpToNearest50(advanceAmount + (monthlyAmount * plan.months));
     return {
       advance: advanceAmount,
       totalPrice: totalPrice,
@@ -470,14 +474,14 @@ const getProductPagination = async (req, res) => {
     subcategory_id,
     minPrice,
     maxPrice,
-    sort = "createdAt",
+    sort = "id",
     order = "desc",
   } = req.query;
   const offset = (page - 1) * limit;
 
   try {
     const where = {
-      status: true, // Only fetch products with status: true
+      status: true,
     };
     if (subcategory_id) {
       where.subcategory_id = parseInt(subcategory_id);
@@ -494,9 +498,11 @@ const getProductPagination = async (req, res) => {
       };
     }
 
-    const validSortFields = ["name", "createdAt"];
-    const sortField = validSortFields.includes(sort) ? sort : "createdAt";
-    const sortOrder = order.toLowerCase() === "desc" ? "desc" : "asc";
+    const validSortFields = ["name", "createdAt", "id"];
+    const sortField = validSortFields.includes(sort) ? sort : "id";
+    const sortOrder = ["asc", "desc"].includes(order.toLowerCase())
+      ? order.toLowerCase()
+      : "desc";
 
     const products = await prisma.product.findMany({
       where,
@@ -535,7 +541,7 @@ const getProductPagination = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(error);
+    console.error("Error fetching products:", error);
     res.status(500).json({ error: "Failed to fetch products" });
   }
 };
@@ -548,12 +554,12 @@ const getProductByName = async (req, res) => {
     const product = await prisma.product.findFirst({
       where: {
         slugName: String(name),
-        status: true, // Only fetch product with status: true
+        status: true,
       },
       include: {
         ProductImage: true,
         ProductInstallments: {
-          where: { isActive: true }, // Only include active installments
+          where: { isActive: true },
         },
         categories: { select: { name: true } },
         subcategories: { select: { name: true, slugName: true } },
@@ -589,7 +595,7 @@ const getAllProductsPagination = async (req, res) => {
     status = 'all',
     sort = 'name',
     order = 'desc',
-    ids,  // New: Support ?ids=1,2,3
+    ids,
   } = req.query;
   const offset = (page - 1) * limit;
 
@@ -843,8 +849,8 @@ const getProductByCategorySlug = async (req, res) => {
     limit = 10,
     minPrice,
     maxPrice,
-    sort = "name",
-    order = "asc",
+    sort = "id",
+    order = "desc",
   } = req.query;
   const offset = (page - 1) * limit;
 
@@ -854,7 +860,7 @@ const getProductByCategorySlug = async (req, res) => {
     }
 
     const where = {
-      status: true, // Only fetch products with status: true
+      status: true,
     };
 
     if (categorySlug) {
@@ -880,14 +886,16 @@ const getProductByCategorySlug = async (req, res) => {
             gte: parseFloat(minPrice),
             lte: parseFloat(maxPrice),
           },
-          isActive: true, // Only fetch active installments
+          isActive: true,
         },
       };
     }
 
-    const validSortFields = ["name"];
-    const sortField = validSortFields.includes(sort) ? sort : "name";
-    const sortOrder = order.toLowerCase() === "desc" ? "desc" : "asc";
+    const validSortFields = ["name", "createdAt", "id"];
+    const sortField = validSortFields.includes(sort) ? sort : "id";
+    const sortOrder = ["asc", "desc"].includes(order.toLowerCase())
+      ? order.toLowerCase()
+      : "desc";
 
     const products = await prisma.product.findMany({
       where,
@@ -899,7 +907,7 @@ const getProductByCategorySlug = async (req, res) => {
         subcategories: { select: { id: true, name: true } },
         ProductImage: true,
         ProductInstallments: {
-          where: { isActive: true }, // Only include active installments
+          where: { isActive: true },
           orderBy: { id: "desc" },
           take: 1,
         },
@@ -938,8 +946,8 @@ const getProductByCategoryAndSubSlug = async (req, res) => {
     limit = 10,
     minPrice,
     maxPrice,
-    sort = "name",
-    order = "asc",
+    sort = "id",
+    order = "desc",
   } = req.query;
   const offset = (page - 1) * limit;
 
@@ -950,7 +958,7 @@ const getProductByCategoryAndSubSlug = async (req, res) => {
     }
 
     const where = {
-      status: true, // Only fetch products with status: true
+      status: true,
     };
 
     if (categorySlug) {
@@ -1003,14 +1011,16 @@ const getProductByCategoryAndSubSlug = async (req, res) => {
             gte: parseFloat(minPrice),
             lte: parseFloat(maxPrice),
           },
-          isActive: true, // Only fetch active installments
+          isActive: true,
         },
       };
     }
 
-    const validSortFields = ["name"];
-    const sortField = validSortFields.includes(sort) ? sort : "name";
-    const sortOrder = order.toLowerCase() === "desc" ? "desc" : "asc";
+    const validSortFields = ["name", "createdAt", "id"];
+    const sortField = validSortFields.includes(sort) ? sort : "id";
+    const sortOrder = ["asc", "desc"].includes(order.toLowerCase())
+      ? order.toLowerCase()
+      : "desc";
 
     const products = await prisma.product.findMany({
       where,
@@ -1022,7 +1032,7 @@ const getProductByCategoryAndSubSlug = async (req, res) => {
         subcategories: { select: { id: true, name: true } },
         ProductImage: true,
         ProductInstallments: {
-          where: { isActive: true }, // Only include active installments
+          where: { isActive: true },
           orderBy: { id: "desc" },
           take: 1,
         },

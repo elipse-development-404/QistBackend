@@ -23,19 +23,7 @@ router.get(
   getCustomers
 );
 
-router.put(
-  '/customers/:id',
-  authenticateToken,
-  [
-    body('firstName').isString().optional(),
-    body('lastName').isString().optional(),
-    body('email').isEmail().optional(),
-    body('phone').isString().optional(),
-    body('cnic').isString().optional(),
-    body('isActive').isBoolean().optional(),
-  ],
-  updateCustomer
-);
+router.put('/customers/:id', authenticateToken, updateCustomer);
 
 router.delete('/customers/:id', authenticateToken, deleteCustomer);
 

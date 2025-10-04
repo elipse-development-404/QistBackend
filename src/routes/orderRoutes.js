@@ -14,7 +14,6 @@ const {
   updateOrderStatus,
   getRejectedOrders
 } = require('../controllers/orderController');
-const { checkPhoneVerified, sendCheckoutOTP, verifyCheckoutOTP } = require('../controllers/authCustomerController');
 
 const router = express.Router();
 
@@ -101,9 +100,5 @@ router.get(
   ],
   getRejectedOrders
 );
-
-router.get('/check-phone-verified', checkPhoneVerified);
-router.post('/send-checkout-otp', sendCheckoutOTP);
-router.post('/verify-checkout-otp', verifyCheckoutOTP);
 
 module.exports = router;
