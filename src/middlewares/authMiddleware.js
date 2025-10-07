@@ -1,21 +1,31 @@
 const jwt = require('jsonwebtoken');
-const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
+require('dotenv').config();
+
+const JWT_SECRET = process.env.JWT_SECRET;
 
 const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const token = req.headers.authorization?.split(' ')[1];
 
   if (!token) {
-    return res.status(401).json({ error: 'Access token required' });
+    return res.status(401).json({ error: 'No token provided' });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, admin) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid or expired token' });
-    }
-    req.admin = admin;
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = {
+      adminId: decoded.adminId,
+      fullName: decoded.fullName,
+      email: decoded.email,
+      profilePicture: decoded.profilePicture,
+      isSuper: decoded.isSuper,
+      isAdmin: decoded.isAdmin,
+      isAccess: decoded.isAccess,
+    };
     next();
-  });
+  } catch (error) {
+    console.error('Authentication error:', error);
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
 };
 
 module.exports = { authenticateToken };

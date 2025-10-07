@@ -9,6 +9,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum AccessLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
 model categories {
   id            Int             @id @default(autoincrement())
   name          String          @db.VarChar(255) @unique
@@ -91,11 +97,17 @@ model ProductInstallments {
 }
 
 model admins {
-  id        Int       @id @default(autoincrement())
-  fullName  String    @db.VarChar(255)
-  email     String    @unique(map: "email") @db.VarChar(255)
-  password  String    @db.VarChar(255)
-  createdAt DateTime? @default(now()) @db.DateTime(0)
+  id             Int         @id @default(autoincrement())
+  fullName       String      @db.VarChar(255)
+  email          String      @unique(map: "email") @db.VarChar(255)
+  password       String      @db.VarChar(255)
+  isSuper        Boolean     @default(false)
+  isAdmin        Boolean     @default(true)
+  isAccess       AccessLevel @default(LOW)
+  profilePicture String?     @db.Text
+  cloudinaryId   String?     @db.VarChar(255)
+  createdAt      DateTime?   @default(now()) @db.DateTime(0)
+  updatedAt      DateTime?   @updatedAt
 }
 
 model Customers {
