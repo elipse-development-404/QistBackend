@@ -592,6 +592,22 @@ const createOrders = async (req, res) => {
       return res.status(400).json({ error: 'months must be a non-negative integer' });
     }
 
+    const existingOrder = await prisma.createOrder.findFirst({
+      where: {
+        phone: data.phone,
+        productName: data.productName,
+        status: {
+          notIn: ['Cancelled', 'Rejected'],
+        },
+      },
+    });
+
+    if (existingOrder) {
+      return res.status(400).json({
+        error: `An order for the product "${data.productName}" has already been placed. Please review your existing orders or contact support for assistance.`,
+      });
+    }
+
     let customerId = null;
     if (data.customerID) {
       customerId = data.customerID;

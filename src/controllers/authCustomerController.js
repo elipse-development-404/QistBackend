@@ -78,6 +78,10 @@ const signup = async (req, res) => {
 
     const existingCustomer = await prisma.customers.findFirst({ where: whereClause });
 
+    const hashedPassword = await bcrypt.hash(password, 10);
+    let customer;
+    let message = "Signup successful. Verification code sent to WhatsApp.";
+
     if (existingCustomer) {
       if (existingCustomer.password) {
         if (email && existingCustomer.email === email) {
@@ -90,9 +94,8 @@ const signup = async (req, res) => {
           return res.status(400).json({ error: "CNIC is already in use" });
         }
       } else {
-        // Guest-verified customer: Update with details
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const updatedCustomer = await prisma.customers.update({
+        // Update existing guest customer, reset isVerified, and send new OTP
+        customer = await prisma.customers.update({
           where: { id: existingCustomer.id },
           data: {
             firstName,
@@ -100,24 +103,26 @@ const signup = async (req, res) => {
             email: email || null,
             cnic,
             password: hashedPassword,
+            isVerified: false,  // Reset to require re-verification
           },
         });
-        return res.status(200).json({ customer: updatedCustomer, message: "Account updated successfully." });
+        message = "Account updated successfully. Re-verification code sent to WhatsApp.";
       }
+    } else {
+      // Create new customer with isVerified false
+      customer = await prisma.customers.create({
+        data: {
+          firstName,
+          lastName,
+          email: email || null,
+          cnic,
+          phone,
+          password: hashedPassword,
+          isVerified: false,
+          createdAt: new Date(),
+        },
+      });
     }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const customer = await prisma.customers.create({
-      data: {
-        firstName,
-        lastName,
-        email: email || null,
-        cnic,
-        phone,
-        password: hashedPassword,
-        createdAt: new Date(),
-      },
-    });
 
     const existingOrdersWhere = { customerId: null, OR: [{ phone }, { cnic }] };
     if (email) existingOrdersWhere.OR.push({ email });
@@ -131,11 +136,13 @@ const signup = async (req, res) => {
       });
     }
 
+    // Always send OTP after create/update
     const code = generateCode();
     const expiry = new Date(Date.now() + 10 * 60 * 1000);
     await prisma.verificationCode.create({
       data: {
         customerId: customer.id,
+        phone,  // Store phone for consistency
         code,
         expiry,
         isForReset: false,
@@ -146,7 +153,7 @@ const signup = async (req, res) => {
 
     res.status(201).json({
       customer,
-      message: "Signup successful. Verification code sent to WhatsApp.",
+      message,
     });
   } catch (error) {
     console.error("Signup error:", error);
@@ -162,18 +169,21 @@ const verify = async (req, res) => {
   }
 
   try {
+    // Find customer if exists
     const customer = await prisma.customers.findFirst({
       where: { OR: [{ email: identifier }, { phone: identifier }] },
     });
-    if (!customer) {
-      return res.status(404).json({ error: 'Customer not found' });
+
+    // Find latest verification, by customerId if exists, else by phone
+    const where = isForReset ? { isForReset: true } : { isForReset: false };
+    if (customer) {
+      where.customerId = customer.id;
+    } else {
+      where.phone = identifier;
     }
 
     const verification = await prisma.verificationCode.findFirst({
-      where: {
-        customerId: customer.id,
-        isForReset,
-      },
+      where,
       orderBy: { createdAt: 'desc' },
     });
 
@@ -181,12 +191,21 @@ const verify = async (req, res) => {
       return res.status(400).json({ error: 'Invalid or expired code' });
     }
 
-    if (!isForReset) {
-      await prisma.customers.update({
-        where: { id: customer.id },
-        data: { isVerified: true },
-      });
-      await prisma.verificationCode.delete({ where: { id: verification.id } });
+    if (isForReset) {
+      // For reset, require customer
+      if (!customer) {
+        return res.status(404).json({ error: 'Customer not found for reset' });
+      }
+    } else {
+      // For verification
+      if (customer) {
+        await prisma.customers.update({
+          where: { id: customer.id },
+          data: { isVerified: true },
+        });
+        await prisma.verificationCode.delete({ where: { id: verification.id } });
+      }
+      // For guests, just delete after success
     }
 
     res.json({ message: isForReset ? 'Code verified. Proceed to reset password.' : 'Phone verified successfully.' });
@@ -204,18 +223,21 @@ const resend = async (req, res) => {
   }
 
   try {
+    // Find customer if exists
     const customer = await prisma.customers.findFirst({
       where: { OR: [{ email: identifier }, { phone: identifier }] },
     });
-    if (!customer) {
-      return res.status(404).json({ error: 'Customer not found' });
+
+    // Find latest verification, by customerId if exists, else by phone
+    const where = isForReset ? { isForReset: true } : { isForReset: false };
+    if (customer) {
+      where.customerId = customer.id;
+    } else {
+      where.phone = identifier;
     }
 
     const latestVerification = await prisma.verificationCode.findFirst({
-      where: {
-        customerId: customer.id,
-        isForReset,
-      },
+      where,
       orderBy: { createdAt: 'desc' },
     });
 
@@ -235,6 +257,7 @@ const resend = async (req, res) => {
 
     const code = generateCode();
     const expiry = new Date(now.getTime() + 10 * 60 * 1000);
+    const phone = customer ? customer.phone : identifier;  // Use identifier as phone if guest
 
     await prisma.verificationCode.upsert({
       where: { id: latestVerification?.id || 0 },
@@ -245,7 +268,8 @@ const resend = async (req, res) => {
         lastResend: now,
       },
       create: {
-        customerId: customer.id,
+        customerId: customer ? customer.id : null,
+        phone,
         code,
         expiry,
         isForReset,
@@ -254,7 +278,7 @@ const resend = async (req, res) => {
       },
     });
 
-    await sendVerificationWhatsApp(customer.phone, code);
+    await sendVerificationWhatsApp(phone, code);
 
     res.json({ message: 'Verification code resent successfully.' });
   } catch (error) {
@@ -376,6 +400,7 @@ const forgot = async (req, res) => {
     await prisma.verificationCode.create({
       data: {
         customerId: customer.id,
+        phone: customer.phone,
         code,
         isForReset: true,
         expiry,

@@ -130,12 +130,15 @@ model Customers {
 }
 
 model VerificationCode {
-  id          Int       @id @default(autoincrement())
-  customerId  Int
-  customer    Customers @relation(fields: [customerId], references: [id])
+  id          Int        @id @default(autoincrement())
+  customerId  Int?
+  phone       String?
+  customer    Customers? @relation(fields: [customerId], references: [id])
   code        String
   isForReset  Boolean
   expiry      DateTime
+  resendCount Int       @default(0)
+  lastResend  DateTime?
   createdAt   DateTime  @default(now())
 }
 
