@@ -24,7 +24,7 @@ router.get(
     query('page').optional().isInt({ min: 1 }).toInt(),
     query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
     query('search').optional().isString().trim(),
-    query('status').optional().isIn(['all', 'Pending', 'Confirmed', 'Shipped', 'Delivered']),
+    query('status').optional().isIn(['all', 'Pending', 'Confirmed', 'Shipped']),
   ],
   getOrders
 );

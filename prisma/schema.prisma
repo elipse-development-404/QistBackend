@@ -3,7 +3,6 @@ generator client {
   binaryTargets = ["native", "debian-openssl-1.0.x"]
 }
 
-
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
@@ -13,6 +12,23 @@ enum AccessLevel {
   LOW
   MEDIUM
   HIGH
+}
+
+enum NotificationType {
+  NEW_ORDER
+  CANCEL_REQUEST
+}
+
+model Notification {
+  id         Int             @id @default(autoincrement())
+  orderId    Int
+  type       NotificationType
+  message    String          @db.Text
+  isRead     Boolean         @default(false)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  order      CreateOrder     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  @@index([orderId])
 }
 
 model categories {
@@ -65,7 +81,7 @@ model Product {
   ProductImage        ProductImage[]
   ProductInstallments ProductInstallments[]
   ProductDeals        ProductDeal[]
-  @@unique([name, category_id, subcategory_id]) // Add unique constraint
+  @@unique([name, category_id, subcategory_id])
   @@index([category_id], map: "Product_category_id_fkey")
   @@index([subcategory_id], map: "Product_subcategory_id_fkey")
 }
@@ -76,7 +92,6 @@ model ProductImage {
   product_id Int
   alt_text  String?
   Product    Product @relation(fields: [product_id], references: [id], onDelete: Cascade)
-
   @@index([product_id], map: "ProductImage_product_id_fkey")
 }
 
@@ -91,7 +106,6 @@ model ProductInstallments {
   dealId        Int?
   Deal          Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
   Product       Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
-
   @@index([product_id], map: "ProductInstallments_product_id_fkey")
   @@index([dealId], map: "ProductInstallments_dealId_fkey")
 }
@@ -103,6 +117,7 @@ model admins {
   password       String      @db.VarChar(255)
   isSuper        Boolean     @default(false)
   isAdmin        Boolean     @default(true)
+  isActive       Boolean @default(true) 
   isAccess       AccessLevel @default(LOW)
   profilePicture String?     @db.Text
   cloudinaryId   String?     @db.VarChar(255)
@@ -174,7 +189,7 @@ model CreateOrder {
   status         OrderStatus @default(Pending)
   tokenNumber    String     @unique @db.VarChar(255)
   customer       Customers? @relation(fields: [customerId], references: [id], onDelete: SetNull)
-
+  notifications  Notification[]
   @@index([customerId])
   @@index([email])
   @@index([phone])
@@ -201,7 +216,6 @@ model Address {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   customer   Customers @relation(fields: [customerId], references: [id], onDelete: Cascade)
-
   @@index([customerId])
 }
 
@@ -236,7 +250,6 @@ model ProductDeal {
   Deal             Deal               @relation(fields: [dealId], references: [id], onDelete: Cascade)
   Product          Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
   DealInstallments DealInstallments[]
-
   @@unique([dealId, productId])
   @@index([dealId])
   @@index([productId])
@@ -253,7 +266,6 @@ model DealInstallments {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   ProductDeal     ProductDeal @relation(fields: [productDealId], references: [id], onDelete: Cascade)
-
   @@index([productDealId])
 }
 
@@ -266,7 +278,6 @@ model TopCategory {
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   categories    categories  @relation(fields: [category_id], references: [id], onDelete: Cascade)
-
   @@index([category_id], map: "TopCategory_category_id_fkey")
 }
 
@@ -339,31 +350,31 @@ model VisitUsMap {
   @@index([visitUsId])
 }
 
-model QuestionAnswer { 
-  id        Int @id @default(autoincrement()) 
-  question  String @db.Text 
+model QuestionAnswer {
+  id        Int @id @default(autoincrement())
+  question  String @db.Text
   answer    String @db.Text
-  status    String @default("active") 
-  createdAt DateTime @default(now()) 
-  updatedAt DateTime @updatedAt 
+  status    String @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-model Agreement { 
-  id        Int @id @default(autoincrement()) 
-  createdAt DateTime @default(now()) 
-  updatedAt DateTime @updatedAt 
-  images    AgreementImage[] @relation("AgreementImages") 
+model Agreement {
+  id        Int @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  images    AgreementImage[] @relation("AgreementImages")
 }
 
-model AgreementImage { 
-  id            Int @id @default(autoincrement()) 
-  agreementId   Int 
-  image_url     String @db.Text 
-  cloudinary_id String @db.VarChar(255) 
-  createdAt     DateTime @default(now()) 
-  updatedAt     DateTime @updatedAt 
-  agreement     Agreement @relation("AgreementImages", fields: [agreementId], references: [id], onDelete: Cascade) 
-  @@index([agreementId]) 
+model AgreementImage {
+  id            Int @id @default(autoincrement())
+  agreementId   Int
+  image_url     String @db.Text
+  cloudinary_id String @db.VarChar(255)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  agreement     Agreement @relation("AgreementImages", fields: [agreementId], references: [id], onDelete: Cascade)
+  @@index([agreementId])
 }
 
 model OrganizationSettings {
@@ -389,6 +400,5 @@ model OrganizationSocialLink {
   createdAt   DateTime               @default(now())
   updatedAt   DateTime               @updatedAt
   settings    OrganizationSettings   @relation(fields: [settingsId], references: [id], onDelete: Cascade)
-
   @@index([settingsId])
 }

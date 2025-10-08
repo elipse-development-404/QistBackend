@@ -23,8 +23,10 @@ const agreementRoutes = require('./routes/agreementRoutes');
 const customerAdminRoutes = require('./routes/customerAdminRoutes');
 const organizationSettingsRoutes = require('./routes/organizationSettingsRoutes');
 const contactRoutes = require('./routes/contactRoutes');
-const adminRoutes = require('./src/routes/adminRoutes');
-const analyticsCountRoutes = require('./src/routes/analyticsCountRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+const analyticsCountRoutes = require('./routes/analyticsCountRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const rolesRoutes = require('./routes/rolesRoutes');
 require('dotenv').config();
 
 const app = express();
@@ -62,6 +64,8 @@ app.use('/api', organizationSettingsRoutes);
 app.use('/api', contactRoutes);
 app.use('/api', adminRoutes);
 app.use('/api', analyticsCountRoutes);
+app.use('/api', notificationRoutes);
+app.use('/api', rolesRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

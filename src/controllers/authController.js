@@ -22,7 +22,7 @@ const signup = async (req, res) => {
     return res.status(400).json({ error: 'Invalid email format' });
   }
 
-  if (password.length < 6) { // Updated to 6 characters
+  if (password.length < 6) {
     return res.status(400).json({ error: 'Password must be at least 6 characters' });
   }
 
@@ -45,6 +45,7 @@ const signup = async (req, res) => {
         createdAt: new Date(),
         isSuper: false,
         isAdmin: true,
+        isActive: true,
         isAccess: 'LOW',
       },
     });
@@ -74,12 +75,17 @@ const login = async (req, res) => {
         profilePicture: true,
         isSuper: true,
         isAdmin: true,
+        isActive: true,
         isAccess: true,
       },
     });
 
     if (!admin) {
       return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    if (!admin.isActive) {
+      return res.status(403).json({ error: 'Your account has been disabled. Please contact the super admin.' });
     }
 
     const isPasswordValid = await bcrypt.compare(password, admin.password);
@@ -95,6 +101,7 @@ const login = async (req, res) => {
         profilePicture: admin.profilePicture,
         isSuper: admin.isSuper,
         isAdmin: admin.isAdmin,
+        isActive: admin.isActive,
         isAccess: admin.isAccess,
       },
       JWT_SECRET,

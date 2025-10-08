@@ -333,7 +333,7 @@ const getOrders = async (req, res) => {
 
     where.AND.push({
       status: {
-        notIn: ['Cancelled', 'Rejected'],
+        notIn: ['Delivered', 'Cancelled', 'Rejected'],
       },
     });
 
@@ -638,6 +638,15 @@ const createOrders = async (req, res) => {
       },
     });
 
+    // Create notification for new order
+    await prisma.notification.create({
+      data: {
+        orderId: newOrder.id,
+        type: 'NEW_ORDER',
+        message: `New order #${newOrder.id} placed for ${newOrder.productName} by ${newOrder.firstName} ${newOrder.lastName}`,
+      },
+    });
+
     await sendOrderWhatsApp(newOrder.phone, 'Order Confirmation', newOrder);
     if (newOrder.email) await sendEmail(newOrder.email, 'Order Confirmation', newOrder);
 
@@ -645,6 +654,34 @@ const createOrders = async (req, res) => {
   } catch (error) {
     console.error('Error creating order:', error);
     res.status(500).json({ error: 'Failed to create order', details: error.message });
+  }
+};
+
+const requestCancelOrder = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const order = await prisma.createOrder.findUnique({
+      where: { id: Number(id) },
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    if (order.cancelRequest === 'pending') {
+      return res.status(400).json({ error: 'Cancel request already pending' });
+    }
+
+    const updatedOrder = await prisma.createOrder.update({
+      where: { id: Number(id) },
+      data: { cancelRequest: 'pending' },
+    });
+
+    res.status(200).json(updatedOrder);
+  } catch (error) {
+    console.error('Error requesting order cancellation:', error);
+    res.status(500).json({ error: 'Failed to request order cancellation' });
   }
 };
 
@@ -841,4 +878,4 @@ const getRejectedOrders = async (req, res) => {
   }
 };
 
-module.exports = { createOrders, trackOrder, getOrders, getPendingOrders, getDeliveredOrders, getOrderById, getCancelRequests, approveCancel, getCancelledOrders, updateOrderStatus, getRejectedOrders };
+module.exports = { createOrders, trackOrder, getOrders, getPendingOrders, getDeliveredOrders, getOrderById, getCancelRequests, approveCancel, getCancelledOrders, updateOrderStatus, getRejectedOrders, requestCancelOrder };

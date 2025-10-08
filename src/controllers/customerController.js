@@ -107,6 +107,15 @@ const requestCancel = async (req, res) => {
       where: { id: Number(orderId) },
       data: { cancelRequest: 'pending' },
     });
+
+    await prisma.notification.create({
+      data: {
+        orderId: updatedOrder.id,
+        type: 'CANCEL_REQUEST',
+        message: `Cancellation request for order #${updatedOrder.id} (${updatedOrder.productName}) by ${updatedOrder.firstName} ${updatedOrder.lastName}`,
+      },
+    });
+
     res.status(200).json(updatedOrder);
   } catch (error) {
     console.error('Error requesting cancellation:', error);
