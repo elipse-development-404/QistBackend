@@ -151,7 +151,7 @@ const sendEmail = async (to, subject, orderData) => {
             <tbody>
               <tr>
                 <td><span class="fw-bold">Customer Name:</span></td>
-                <td><span class="fw-bold">${orderData.firstName} ${orderData.lastName}</span></td>
+                <td><span class="fw-bold">${orderData.fullName}</span></td>
               </tr>
               <tr>
                 <td><span class="fw-bold">WhatsApp Number:</span></td>
@@ -224,7 +224,7 @@ const sendOrderWhatsApp = async (phone, subject, orderData) => {
     broadcastName = WATI_ORDER_CONFIRMATION_BROADCAST_NAME;
     orderNoticeMessage = 'Your order has been successfully placed!';
     parameters = [
-      { name: '1', value: `${orderData.firstName} ${orderData.lastName}` },
+      { name: '1', value: `${orderData.fullName}` },
       { name: '2', value: orderData.id.toString() },
       { name: '3', value: orderData.tokenNumber },
       { name: '4', value: new Date(orderData.createdAt).toLocaleDateString() },
@@ -244,7 +244,7 @@ const sendOrderWhatsApp = async (phone, subject, orderData) => {
     broadcastName = WATI_ORDER_TRACKING_BROADCAST_NAME;
     orderNoticeMessage = 'Order details retrieved successfully.';
     parameters = [
-      { name: '1', value: `${orderData.firstName} ${orderData.lastName}` },
+      { name: '1', value: `${orderData.fullName}` },
       { name: '2', value: orderData.id.toString() },
       { name: '3', value: orderData.tokenNumber },
       { name: '4', value: new Date(orderData.createdAt).toLocaleDateString() },
@@ -257,7 +257,7 @@ const sendOrderWhatsApp = async (phone, subject, orderData) => {
     broadcastName = WATI_ORDER_CANCEL_BROADCAST_NAME;
     orderNoticeMessage = 'Your order cancel request has been approved. Your order is now cancelled.';
     parameters = [
-      { name: '1', value: `${orderData.firstName} ${orderData.lastName}` },
+      { name: '1', value: `${orderData.fullName}` },
       { name: '17', value: orderNoticeMessage },
       { name: '2', value: orderData.id.toString() },
       { name: '3', value: orderData.tokenNumber },
@@ -271,7 +271,7 @@ const sendOrderWhatsApp = async (phone, subject, orderData) => {
     broadcastName = WATI_ORDER_REJECTED_BROADCAST_NAME;
     orderNoticeMessage = `Your order has been rejected.`;
     parameters = [
-      { name: '1', value: `${orderData.firstName} ${orderData.lastName}` },
+      { name: '1', value: `${orderData.fullName}` },
       { name: '17', value: orderNoticeMessage },
       { name: '2', value: orderData.id.toString() },
       { name: '3', value: orderData.tokenNumber },
@@ -286,7 +286,7 @@ const sendOrderWhatsApp = async (phone, subject, orderData) => {
     broadcastName = WATI_ORDER_STATUS_UPDATE_BROADCAST_NAME;
     orderNoticeMessage = `Great news! Your order is now ${orderData.status}.`;
     parameters = [
-      { name: '1', value: `${orderData.firstName} ${orderData.lastName}` },
+      { name: '1', value: `${orderData.fullName}` },
       { name: '17', value: orderNoticeMessage },
       { name: '2', value: orderData.id.toString() },
       { name: '3', value: orderData.tokenNumber },
@@ -342,8 +342,7 @@ const getOrders = async (req, res) => {
         OR: [
           { id: isNaN(search) ? undefined : Number(search) },
           { tokenNumber: { contains: search, mode: 'insensitive' } },
-          { firstName: { contains: search, mode: 'insensitive' } },
-          { lastName: { contains: search, mode: 'insensitive' } },
+          { fullName: { contains: search, mode: 'insensitive' } },
           { productName: { contains: search, mode: 'insensitive' } },
         ].filter(Boolean),
       });
@@ -399,8 +398,7 @@ const getPendingOrders = async (req, res) => {
         OR: [
           { id: isNaN(search) ? undefined : Number(search) },
           { tokenNumber: { contains: search, mode: 'insensitive' } },
-          { firstName: { contains: search, mode: 'insensitive' } },
-          { lastName: { contains: search, mode: 'insensitive' } },
+          { fullName: { contains: search, mode: 'insensitive' } },
           { productName: { contains: search, mode: 'insensitive' } },
         ].filter(Boolean),
       });
@@ -452,8 +450,7 @@ const getDeliveredOrders = async (req, res) => {
         OR: [
           { id: isNaN(search) ? undefined : Number(search) },
           { tokenNumber: { contains: search, mode: 'insensitive' } },
-          { firstName: { contains: search, mode: 'insensitive' } },
-          { lastName: { contains: search, mode: 'insensitive' } },
+          { fullName: { contains: search, mode: 'insensitive' } },
           { productName: { contains: search, mode: 'insensitive' } },
         ].filter(Boolean),
       });
@@ -504,8 +501,7 @@ const getCancelledOrders = async (req, res) => {
         OR: [
           { id: isNaN(search) ? undefined : Number(search) },
           { tokenNumber: { contains: search, mode: 'insensitive' } },
-          { firstName: { contains: search, mode: 'insensitive' } },
-          { lastName: { contains: search, mode: 'insensitive' } },
+          { fullName: { contains: search, mode: 'insensitive' } },
           { productName: { contains: search, mode: 'insensitive' } },
         ].filter(Boolean),
       });
@@ -559,7 +555,7 @@ const createOrders = async (req, res) => {
     const data = req.body;
 
     const requiredFields = [
-      'phone', 'firstName', 'lastName', 'cnic', 'city', 'area', 'address', 'paymentMethod',
+      'phone', 'fullName', 'cnic', 'city', 'area', 'address', 'paymentMethod',
       'productName', 'totalDealValue', 'advanceAmount', 'monthlyAmount', 'months'
     ];
     for (const field of requiredFields) {
@@ -621,8 +617,7 @@ const createOrders = async (req, res) => {
         email: data.email || null,
         phone: data.phone,
         alternativePhone: data.alternativePhone || null,
-        firstName: data.firstName,
-        lastName: data.lastName,
+        fullName: data.fullName,
         cnic: data.cnic,
         city: data.city,
         area: data.area,
@@ -643,7 +638,7 @@ const createOrders = async (req, res) => {
       data: {
         orderId: newOrder.id,
         type: 'NEW_ORDER',
-        message: `New order #${newOrder.id} placed for ${newOrder.productName} by ${newOrder.firstName} ${newOrder.lastName}`,
+        message: `New order #${newOrder.id} placed for ${newOrder.productName} by ${newOrder.fullName}`,
       },
     });
 
@@ -739,8 +734,7 @@ const getCancelRequests = async (req, res) => {
         OR: [
           { id: isNaN(search) ? undefined : Number(search) },
           { tokenNumber: { contains: search, mode: 'insensitive' } },
-          { firstName: { contains: search, mode: 'insensitive' } },
-          { lastName: { contains: search, mode: 'insensitive' } },
+          { fullName: { contains: search, mode: 'insensitive' } },
           { productName: { contains: search, mode: 'insensitive' } },
         ].filter(Boolean),
       });
@@ -847,8 +841,7 @@ const getRejectedOrders = async (req, res) => {
         OR: [
           { id: isNaN(search) ? undefined : Number(search) },
           { tokenNumber: { contains: search, mode: 'insensitive' } },
-          { firstName: { contains: search, mode: 'insensitive' } },
-          { lastName: { contains: search, mode: 'insensitive' } },
+          { fullName: { contains: search, mode: 'insensitive' } },
           { productName: { contains: search, mode: 'insensitive' } },
         ].filter(Boolean),
       });

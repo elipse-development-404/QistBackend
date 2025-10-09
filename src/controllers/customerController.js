@@ -6,7 +6,7 @@ const getProfile = async (req, res) => {
   try {
     const customer = await prisma.customers.findUnique({
       where: { id: req.customer.customerId },
-      select: { id: true, email: true, firstName: true, lastName: true, phone: true, alternativePhone: true,  cnic: true },
+      select: { id: true, email: true, fullName: true, phone: true, alternativePhone: true,  cnic: true },
     });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
@@ -19,7 +19,7 @@ const getProfile = async (req, res) => {
 };
 
 const updateProfile = async (req, res) => {
-  const { firstName, lastName, phone, alternativePhone, cnic, email } = req.body;
+  const { fullName, phone, alternativePhone, cnic, email } = req.body;
   try {
     const customer = await prisma.customers.findUnique({
       where: { id: req.customer.customerId },
@@ -30,8 +30,7 @@ const updateProfile = async (req, res) => {
     }
 
     const updateData = {
-      firstName,
-      lastName,
+      fullName,
       phone,
       alternativePhone,
       ...(customer.cnic === null && cnic ? { cnic } : {}),
@@ -41,7 +40,7 @@ const updateProfile = async (req, res) => {
     const updatedCustomer = await prisma.customers.update({
       where: { id: req.customer.customerId },
       data: updateData,
-      select: { id: true, email: true, firstName: true, lastName: true, phone: true, alternativePhone: true, cnic: true },
+      select: { id: true, email: true, fullName: true, phone: true, alternativePhone: true, cnic: true },
     });
     res.json(updatedCustomer);
   } catch (error) {
@@ -112,7 +111,7 @@ const requestCancel = async (req, res) => {
       data: {
         orderId: updatedOrder.id,
         type: 'CANCEL_REQUEST',
-        message: `Cancellation request for order #${updatedOrder.id} (${updatedOrder.productName}) by ${updatedOrder.firstName} ${updatedOrder.lastName}`,
+        message: `Cancellation request for order #${updatedOrder.id} (${updatedOrder.productName}) by ${updatedOrder.fullName}`,
       },
     });
 

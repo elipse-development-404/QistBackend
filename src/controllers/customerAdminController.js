@@ -19,8 +19,7 @@ const getCustomers = async (req, res) => {
     const where = {};
     if (search) {
       where.OR = [
-        { firstName: { contains: search } },
-        { lastName: { contains: search } },
+        { fullName: { contains: search } },
         { email: { contains: search } },
         { phone: { contains: search } },
         { cnic: { contains: search } },
@@ -31,7 +30,7 @@ const getCustomers = async (req, res) => {
     if (status === "inactive") where.isActive = false;
 
     // Sorting
-    const validSortFields = ["id", "firstName", "isActive"];
+    const validSortFields = ["id", "fullName", "isActive"];
     const sortField = validSortFields.includes(sort) ? sort : "id";
     const sortOrder = order.toLowerCase() === "desc" ? "desc" : "asc";
 
@@ -43,8 +42,7 @@ const getCustomers = async (req, res) => {
       orderBy: { [sortField]: sortOrder },
       select: {
         id: true,
-        firstName: true,
-        lastName: true,
+        fullName: true,
         email: true,
         phone: true,
         cnic: true,
@@ -77,7 +75,7 @@ const updateCustomer = async (req, res) => {
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { firstName, lastName, email, phone, cnic, isActive } = req.body;
+  const { fullName, email, phone, cnic, isActive } = req.body;
   const { id } = req.params;
 
   try {
@@ -89,8 +87,7 @@ const updateCustomer = async (req, res) => {
     const updated = await prisma.customers.update({
       where: { id: Number(id) },
       data: {
-        firstName: firstName ?? customer.firstName,
-        lastName: lastName ?? customer.lastName,
+        fullName: fullName ?? customer.fullName,
         email: email !== undefined ? email : customer.email,
         phone: phone ?? customer.phone,
         cnic: cnic ?? customer.cnic,

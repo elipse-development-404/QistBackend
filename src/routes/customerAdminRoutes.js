@@ -17,7 +17,7 @@ router.get(
     query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
     query('search').optional().isString().trim(),
     query('status').optional().isIn(['all', 'active', 'inactive']),
-    query('sort').optional().isIn(['id', 'firstName', 'isActive']),
+    query('sort').optional().isIn(['id', 'fullName', 'isActive']),
     query('order').optional().isIn(['asc', 'desc']),
   ],
   getCustomers

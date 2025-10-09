@@ -46,9 +46,9 @@ const sendVerificationWhatsApp = async (phone, code) => {
 };
 
 const signup = async (req, res) => {
-  const { firstName, lastName, email, cnic, phone, password, confirmPassword } = req.body;
+  const { fullName, email, cnic, phone, password, confirmPassword } = req.body;
 
-  if (!firstName || !lastName || !cnic || !phone || !password || !confirmPassword) {
+  if (!fullName || !cnic || !phone || !password || !confirmPassword) {
     return res.status(400).json({ error: "Required fields are missing" });
   }
 
@@ -98,8 +98,7 @@ const signup = async (req, res) => {
         customer = await prisma.customers.update({
           where: { id: existingCustomer.id },
           data: {
-            firstName,
-            lastName,
+            fullName,
             email: email || null,
             cnic,
             password: hashedPassword,
@@ -112,8 +111,7 @@ const signup = async (req, res) => {
       // Create new customer with isVerified false
       customer = await prisma.customers.create({
         data: {
-          firstName,
-          lastName,
+          fullName,
           email: email || null,
           cnic,
           phone,
@@ -332,8 +330,7 @@ const login = async (req, res) => {
       {
         customerId: customer.id,
         email: customer.email,
-        firstName: customer.firstName,
-        lastName: customer.lastName,
+        fullName: customer.fullName,
         phone: customer.phone,
         alternativePhone: customer.alternativePhone,
         cnic: customer.cnic,
@@ -345,8 +342,7 @@ const login = async (req, res) => {
     res.json({
       token,
       customer: {
-        firstName: customer.firstName,
-        lastName: customer.lastName,
+        fullName: customer.fullName,
         email: customer.email,
         phone: customer.phone,
         alternativePhone: customer.alternativePhone,

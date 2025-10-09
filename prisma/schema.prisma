@@ -129,8 +129,7 @@ model Customers {
   id          Int                  @id @default(autoincrement())
   email       String?               @unique
   password    String?
-  firstName   String?
-  lastName    String?
+  fullName   String?
   phone       String               @unique
   alternativePhone String?
   cnic        String?              @db.VarChar(13) @unique
@@ -170,8 +169,7 @@ model CreateOrder {
   email          String?     @db.VarChar(255)
   phone          String     @db.VarChar(20)
   alternativePhone String?
-  firstName      String     @db.VarChar(100)
-  lastName       String     @db.VarChar(100)
+  fullName      String     @db.VarChar(100)
   cnic           String     @db.VarChar(13)
   city           String     @db.VarChar(100)
   area           String     @db.VarChar(100)

@@ -26,8 +26,7 @@ const getNotifications = async (req, res) => {
           select: {
             id: true,
             productName: true,
-            firstName: true,
-            lastName: true,
+            fullName: true,
             tokenNumber: true,
           },
         },
