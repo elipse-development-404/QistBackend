@@ -1,4 +1,4 @@
-const { createProduct, getAllProducts, getProductByName, toggleProductField, updateProduct, getProductPagination, getProductByCategorySlug, getProductByCategoryAndSubSlug, getLatestProducts, getAllProductsPagination, getProductById, getProductSearch, getProductBySubcategorySlugSimple, bulkCreateProducts, bulkUpdateProducts, bulkDeleteProducts } = require('../controllers/productController');
+const { createProduct, getAllProducts, getProductByName, toggleProductField, updateProduct, getProductPagination, getProductByCategorySlug, getProductByCategoryAndSubSlug, getLatestProducts, getAllProductsPagination, getProductById, getProductSearch, getProductBySubcategorySlugSimple, bulkCreateProducts, bulkUpdateProducts, bulkDeleteProducts, getProductsByIds } = require('../controllers/productController');
 const upload = require('../middlewares/uploadMiddleware');
 const express = require('express');
 const router = express.Router();
@@ -32,6 +32,13 @@ router.put('/product/:id', updateProduct);
 router.get('/product/name/:name', getProductByName);
 router.get('/product/:id', getProductById);
 router.patch('/products/:id/toggle', toggleProductField);
-// router.delete('/products/:id', deleteProduct); // Add if not there
+
+router.get(
+  '/products-by-ids',
+  [
+    query('ids').notEmpty().withMessage('IDs parameter is required'),
+  ],
+  getProductsByIds
+);
 
 module.exports = router;

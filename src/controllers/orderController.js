@@ -341,9 +341,9 @@ const getOrders = async (req, res) => {
       where.AND.push({
         OR: [
           { id: isNaN(search) ? undefined : Number(search) },
-          { tokenNumber: { contains: search, mode: 'insensitive' } },
-          { fullName: { contains: search, mode: 'insensitive' } },
-          { productName: { contains: search, mode: 'insensitive' } },
+          { tokenNumber: { contains: search } },
+          { fullName: { contains: search } },
+          { productName: { contains: search } },
         ].filter(Boolean),
       });
     }
@@ -397,9 +397,9 @@ const getPendingOrders = async (req, res) => {
       where.AND.push({
         OR: [
           { id: isNaN(search) ? undefined : Number(search) },
-          { tokenNumber: { contains: search, mode: 'insensitive' } },
-          { fullName: { contains: search, mode: 'insensitive' } },
-          { productName: { contains: search, mode: 'insensitive' } },
+          { tokenNumber: { contains: search } },
+          { fullName: { contains: search } },
+          { productName: { contains: search } },
         ].filter(Boolean),
       });
     }
@@ -429,16 +429,19 @@ const getPendingOrders = async (req, res) => {
 };
 
 const getDeliveredOrders = async (req, res) => {
-  const {
-    page = 1,
-    limit = 10,
-    search = '',
-  } = req.query;
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 10;
+  const search = req.query.search || '';
+
+  if (isNaN(page) || isNaN(limit) || page < 1 || limit < 1) {
+    return res.status(400).json({ error: 'Invalid page or limit parameters' });
+  }
+
   const skip = (page - 1) * limit;
-  const take = Number(limit);
+  const take = limit;
 
   try {
-    const where = { 
+    const where = {
       AND: [
         { status: 'Delivered' },
         { status: { notIn: ['Cancelled', 'Rejected'] } },
@@ -446,14 +449,17 @@ const getDeliveredOrders = async (req, res) => {
     };
 
     if (search) {
-      where.AND.push({
-        OR: [
-          { id: isNaN(search) ? undefined : Number(search) },
-          { tokenNumber: { contains: search, mode: 'insensitive' } },
-          { fullName: { contains: search, mode: 'insensitive' } },
-          { productName: { contains: search, mode: 'insensitive' } },
-        ].filter(Boolean),
-      });
+      const orConditions = [
+        { tokenNumber: { contains: search } },
+        { fullName: { contains: search } },
+        { productName: { contains: search } },
+      ];
+
+      if (!isNaN(search)) {
+        orConditions.push({ id: Number(search) });
+      }
+
+      where.AND.push({ OR: orConditions });
     }
 
     const orders = await prisma.createOrder.findMany({
@@ -470,13 +476,13 @@ const getDeliveredOrders = async (req, res) => {
       pagination: {
         totalItems,
         totalPages: Math.ceil(totalItems / limit),
-        currentPage: Number(page),
-        limit: Number(limit),
+        currentPage: page,
+        limit,
       },
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch delivered orders' });
+    console.error('Error fetching delivered orders:', error);
+    res.status(500).json({ error: 'Failed to fetch delivered orders', details: error.message });
   }
 };
 
@@ -500,9 +506,9 @@ const getCancelledOrders = async (req, res) => {
       where.AND.push({
         OR: [
           { id: isNaN(search) ? undefined : Number(search) },
-          { tokenNumber: { contains: search, mode: 'insensitive' } },
-          { fullName: { contains: search, mode: 'insensitive' } },
-          { productName: { contains: search, mode: 'insensitive' } },
+          { tokenNumber: { contains: search } },
+          { fullName: { contains: search } },
+          { productName: { contains: search } },
         ].filter(Boolean),
       });
     }
@@ -733,9 +739,9 @@ const getCancelRequests = async (req, res) => {
       where.AND.push({
         OR: [
           { id: isNaN(search) ? undefined : Number(search) },
-          { tokenNumber: { contains: search, mode: 'insensitive' } },
-          { fullName: { contains: search, mode: 'insensitive' } },
-          { productName: { contains: search, mode: 'insensitive' } },
+          { tokenNumber: { contains: search } },
+          { fullName: { contains: search } },
+          { productName: { contains: search } },
         ].filter(Boolean),
       });
     }
@@ -840,9 +846,9 @@ const getRejectedOrders = async (req, res) => {
       where.AND.push({
         OR: [
           { id: isNaN(search) ? undefined : Number(search) },
-          { tokenNumber: { contains: search, mode: 'insensitive' } },
-          { fullName: { contains: search, mode: 'insensitive' } },
-          { productName: { contains: search, mode: 'insensitive' } },
+          { tokenNumber: { contains: search } },
+          { fullName: { contains: search } },
+          { productName: { contains: search } },
         ].filter(Boolean),
       });
     }

@@ -16,7 +16,6 @@ const getSubcategories = async (req, res) => {
   const take = Number(limit);
 
   try {
-    // Filters
     const where = {
       AND: [],
     };
@@ -24,9 +23,9 @@ const getSubcategories = async (req, res) => {
     if (search) {
       where.AND.push({
         OR: [
-          { name: { contains: search, mode: "insensitive" } },
-          { slugName: { contains: search, mode: "insensitive" } },
-          { categories: { name: { contains: search, mode: "insensitive" } } },
+          { name: { contains: search } },
+          { slugName: { contains: search } },
+          { categories: { name: { contains: search } } },
           { id: isNaN(search) ? undefined : Number(search) },
         ],
       });
@@ -38,11 +37,10 @@ const getSubcategories = async (req, res) => {
       where.AND.push({ isActive: false });
     }
 
-    // Sorting
     const validSortFields = {
       id: "id",
       name: "name",
-      "c.name": "categories.name", // nested relation
+      "c.name": "categories.name",
       isActive: "isActive",
     };
     const sortField = validSortFields[sort] || "name";
@@ -61,8 +59,8 @@ const getSubcategories = async (req, res) => {
 
     const formatted = subcategories.map(sc => ({
   ...sc,
-  category_name: sc.categories?.name || null, // extract name
-  categories: undefined // remove original nested object if not needed
+  category_name: sc.categories?.name || null,
+  categories: undefined
 }));
 
     const totalItems = await prisma.subcategories.count({ where });

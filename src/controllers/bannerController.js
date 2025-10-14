@@ -23,7 +23,7 @@ const getBanners = async (req, res) => {
     if (search) {
       where.AND.push({
         OR: [
-          { product_url: { contains: search, mode: 'insensitive' } },
+          { product_url: { contains: search } },
           { id: isNaN(search) ? undefined : Number(search) },
         ],
       });

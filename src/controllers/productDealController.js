@@ -58,8 +58,8 @@ const getProductDealsPagination = async (req, res) => {
     if (search) {
       where.AND.push({
         OR: [
-          { Deal: { name: { contains: search, mode: 'insensitive' } } },
-          { Product: { name: { contains: search, mode: 'insensitive' } } },
+          { Deal: { name: { contains: search } } },
+          { Product: { name: { contains: search } } },
           { id: isNaN(search) ? undefined : Number(search) },
         ].filter(Boolean),
       });

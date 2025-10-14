@@ -19,6 +19,12 @@ enum NotificationType {
   CANCEL_REQUEST
 }
 
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model Notification {
   id         Int             @id @default(autoincrement())
   orderId    Int
@@ -30,6 +36,43 @@ model Notification {
   order      CreateOrder     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   @@index([orderId])
 }
+
+model Review {
+  id            Int          @id @default(autoincrement())
+  customerId    Int
+  productId     Int
+  orderId       Int
+  comment       String       @db.Text
+  rating        Int
+  mediaUrl      String?      @db.Text
+  cloudinaryId  String?      @db.VarChar(255)
+  status        ReviewStatus @default(PENDING)
+  likes         Int          @default(0)
+  dislikes      Int          @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  customer      Customers    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  product       Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  order         CreateOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  userLikes     UserReviewLike[]
+  @@index([customerId])
+  @@index([productId])
+  @@index([orderId])
+}
+
+model UserReviewLike {
+  id        Int      @id @default(autoincrement())
+  customerId Int
+  reviewId  Int
+  isLike    Boolean
+  createdAt DateTime @default(now())
+  customer  Customers @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  @@unique([customerId, reviewId])
+  @@index([customerId])
+  @@index([reviewId])
+}
+
 
 model categories {
   id            Int             @id @default(autoincrement())
@@ -81,6 +124,7 @@ model Product {
   ProductImage        ProductImage[]
   ProductInstallments ProductInstallments[]
   ProductDeals        ProductDeal[]
+  reviews             Review[]
   @@unique([name, category_id, subcategory_id])
   @@index([category_id], map: "Product_category_id_fkey")
   @@index([subcategory_id], map: "Product_subcategory_id_fkey")
@@ -141,6 +185,8 @@ model Customers {
   passwordResetAttempts PasswordResetAttempt[]
   orders      CreateOrder[]
   addresses   Address[]
+  reviews     Review[]
+  userLikes   UserReviewLike[]
 }
 
 model VerificationCode {
@@ -188,6 +234,7 @@ model CreateOrder {
   tokenNumber    String     @unique @db.VarChar(255)
   customer       Customers? @relation(fields: [customerId], references: [id], onDelete: SetNull)
   notifications  Notification[]
+  reviews        Review[]
   @@index([customerId])
   @@index([email])
   @@index([phone])

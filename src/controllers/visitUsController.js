@@ -12,20 +12,34 @@ const getVisitUs = async (req, res) => {
     sort = 'id',
     order = 'asc',
   } = req.query;
-  const skip = (page - 1) * limit;
-  const take = Number(limit);
+
+  // Validate inputs
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
+  if (isNaN(pageNum) || isNaN(limitNum) || pageNum < 1 || limitNum < 1) {
+    return res.status(400).json({ error: 'Invalid page or limit parameters' });
+  }
+  const skip = (pageNum - 1) * limitNum;
+  const take = limitNum;
 
   try {
-    const where = { AND: [] };
+    // Filters
+    const where = {};
+    if (search || status !== 'all') {
+      where.AND = [];
+    }
 
     if (search) {
-      where.AND.push({
-        OR: [
-          { title: { contains: search, mode: 'insensitive' } },
-          { maps: { some: { address: { contains: search, mode: 'insensitive' } } } },
-          { id: isNaN(search) ? undefined : Number(search) },
-        ],
-      });
+      const orConditions = [
+        { title: { contains: search } }, // Add mode: 'insensitive' for PostgreSQL/MySQL
+        { maps: { some: { address: { contains: search } } } },
+      ];
+
+      if (!isNaN(search)) {
+        orConditions.push({ id: Number(search) });
+      }
+
+      where.AND.push({ OR: orConditions });
     }
 
     if (status === 'active') {
@@ -34,33 +48,39 @@ const getVisitUs = async (req, res) => {
       where.AND.push({ isActive: false });
     }
 
+    // Sorting
     const validSortFields = {
       id: 'id',
       title: 'title',
       isActive: 'isActive',
     };
     const sortField = validSortFields[sort] || 'id';
+    const sortOrder = order.toLowerCase() === 'desc' ? 'desc' : 'asc';
 
+    // Fetch items
     const items = await prisma.visitUs.findMany({
       where,
-      orderBy: { [sortField]: order.toLowerCase() === 'desc' ? 'desc' : 'asc' },
+      orderBy: { [sortField]: sortOrder },
       skip,
       take,
       include: { maps: true },
     });
 
+    // Count total
+    const totalItems = await prisma.visitUs.count({ where });
+
     res.status(200).json({
       data: items,
       pagination: {
-        totalItems: await prisma.visitUs.count({ where }),
-        totalPages: Math.ceil((await prisma.visitUs.count({ where })) / limit),
-        currentPage: Number(page),
-        limit: Number(limit),
+        totalItems,
+        totalPages: Math.ceil(totalItems / limitNum),
+        currentPage: pageNum,
+        limit: limitNum,
       },
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch visit us items' });
+    console.error('Error fetching visit us items:', error);
+    res.status(500).json({ error: 'Failed to fetch visit us items', details: error.message });
   }
 };
 

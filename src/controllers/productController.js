@@ -595,12 +595,10 @@ const getAllProductsPagination = async (req, res) => {
     status = 'all',
     sort = 'name',
     order = 'desc',
-    ids,
   } = req.query;
   const offset = (page - 1) * limit;
 
   try {
-    // Input validation
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -609,24 +607,23 @@ const getAllProductsPagination = async (req, res) => {
     // Filters
     const where = {};
     if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-        { id: isNaN(search) ? undefined : Number(search) },
-      ].filter(Boolean);
-    }
-    if (status === 'active') where.isActive = true;
-    if (status === 'inactive') where.isActive = false;
-    if (ids) {
-      where.id = { in: ids.split(',').map(Number) };  // New: Filter by ids
-    }
+      const orConditions = [
+        { name: { contains: search } },
+      ];
 
-    // Sorting
-    const validSortFields = ['id', 'name', 'price', 'isActive'];
+      if (!isNaN(search)) {
+        orConditions.push({ id: Number(search) });
+      }
+
+      where.OR = orConditions;
+    }
+    if (status === 'active') where.status = true;
+    if (status === 'inactive') where.status = false;
+
+    const validSortFields = ['id', 'name', 'price', 'status'];
     const sortField = validSortFields.includes(sort) ? sort : 'name';
     const sortOrder = order.toLowerCase() === 'desc' ? 'desc' : 'asc';
 
-    // Fetch products
     const products = await prisma.product.findMany({
       where,
       skip: Number(offset),
@@ -640,10 +637,8 @@ const getAllProductsPagination = async (req, res) => {
       },
     });
 
-    // Count total
     const totalItems = await prisma.product.count({ where });
 
-    // Transform response
     const response = products.map(p => ({
       ...p,
       category_name: p.categories?.name || null,
@@ -665,6 +660,56 @@ const getAllProductsPagination = async (req, res) => {
   } catch (error) {
     console.error('Error fetching products:', error);
     res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
+const getProductsByIds = async (req, res) => {
+  const { ids } = req.query;
+
+  try {
+    if (!ids) {
+      return res.status(400).json({ message: "IDs parameter is required" });
+    }
+
+    // Convert comma-separated IDs to an array of integers
+    const idArray = ids.split(',').map(id => parseInt(id)).filter(id => !isNaN(id));
+    if (idArray.length === 0) {
+      return res.status(400).json({ message: "Valid product IDs are required" });
+    }
+
+    // Fetch products by IDs
+    const products = await prisma.product.findMany({
+      where: {
+        id: { in: idArray },
+      },
+      orderBy: { id: "desc" },
+      include: {
+        ProductImage: true,
+        ProductInstallments: {
+          where: { isActive: true },
+          orderBy: { id: "desc" },
+        },
+        categories: { select: { id: true, name: true } },
+        subcategories: { select: { id: true, name: true } },
+      },
+    });
+
+    // Transform response
+    const response = products.map(p => ({
+      ...p,
+      category_name: p.categories?.name || null,
+      subcategory_name: p.subcategories?.name || null,
+      isDeal: p.isDeal,
+      categories: undefined,
+      subcategories: undefined,
+    }));
+
+    res.status(200).json({
+      data: response,
+    });
+  } catch (error) {
+    console.error("Error fetching products by IDs:", error);
+    res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
 
@@ -1333,4 +1378,4 @@ const getProductBySubcategorySlugSimple = async (req, res) => {
   }
 };
 
-module.exports = { createProduct, getAllProducts, getProductByName, toggleProductField, updateProduct, getProductPagination, getProductByCategorySlug, getProductByCategoryAndSubSlug, getLatestProducts, getAllProductsPagination, getProductById, getProductSearch, getProductBySubcategorySlugSimple, bulkCreateProducts, bulkUpdateProducts, bulkDeleteProducts }
+module.exports = { createProduct, getAllProducts, getProductByName, toggleProductField, updateProduct, getProductPagination, getProductByCategorySlug, getProductByCategoryAndSubSlug, getLatestProducts, getAllProductsPagination, getProductById, getProductSearch, getProductBySubcategorySlugSimple, bulkCreateProducts, bulkUpdateProducts, bulkDeleteProducts, getProductsByIds }

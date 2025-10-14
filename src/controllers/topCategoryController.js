@@ -22,7 +22,7 @@ const getTopCategories = async (req, res) => {
     if (search) {
       where.AND.push({
         OR: [
-          { categories: { name: { contains: search, mode: 'insensitive' } } },
+          { categories: { name: { contains: search } } },
           { id: isNaN(search) ? undefined : Number(search) },
         ],
       });
