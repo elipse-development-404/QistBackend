@@ -1,6 +1,7 @@
 const express = require('express');
 const { body, query } = require('express-validator');
 const { authenticateToken } = require('../middlewares/authMiddleware');
+const { authenticateCustomerToken } = require('../middlewares/authCustomerMiddleware');
 const {
   createOrders,
   trackOrder,
@@ -12,7 +13,8 @@ const {
   getCancelRequests,
   getCancelledOrders,
   updateOrderStatus,
-  getRejectedOrders
+  getRejectedOrders,
+  getMyOrders
 } = require('../controllers/orderController');
 
 const router = express.Router();
@@ -62,7 +64,8 @@ router.get(
   getCancelledOrders
 );
 
-router.get('/orders/:id', authenticateToken, getOrderById);
+router.get('/orders/:id', getOrderById);
+router.get('/orders/my/:id', authenticateCustomerToken, getMyOrders);
 
 router.post('/order', createOrders);
 router.post('/order/track-order', trackOrder);

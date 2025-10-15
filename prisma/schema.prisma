@@ -44,8 +44,6 @@ model Review {
   orderId       Int
   comment       String       @db.Text
   rating        Int
-  mediaUrl      String?      @db.Text
-  cloudinaryId  String?      @db.VarChar(255)
   status        ReviewStatus @default(PENDING)
   likes         Int          @default(0)
   dislikes      Int          @default(0)
@@ -55,6 +53,7 @@ model Review {
   product       Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
   order         CreateOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
   userLikes     UserReviewLike[]
+  ReviewMedia   ReviewMedia[]
   @@index([customerId])
   @@index([productId])
   @@index([orderId])
@@ -70,6 +69,15 @@ model UserReviewLike {
   review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
   @@unique([customerId, reviewId])
   @@index([customerId])
+  @@index([reviewId])
+}
+
+model ReviewMedia {
+  id           Int     @id @default(autoincrement())
+  reviewId     Int
+  mediaUrl     String  @db.Text
+  cloudinaryId String? @db.VarChar(255)
+  review       Review  @relation(fields: [reviewId], references: [id], onDelete: Cascade)
   @@index([reviewId])
 }
 
@@ -210,31 +218,33 @@ model PasswordResetAttempt {
 }
 
 model CreateOrder {
-  id             Int        @id @default(autoincrement())
-  customerId     Int?
-  email          String?     @db.VarChar(255)
-  phone          String     @db.VarChar(20)
+  id              Int         @id @default(autoincrement())
+  customerId      Int?
+  email           String?     @db.VarChar(255)
+  phone           String      @db.VarChar(20)
   alternativePhone String?
-  fullName      String     @db.VarChar(100)
-  cnic           String     @db.VarChar(13)
-  city           String     @db.VarChar(100)
-  area           String     @db.VarChar(100)
-  address        String     @db.Text
-  orderNotes     String?    @db.Text
-  paymentMethod  String     @db.VarChar(50)
-  productName    String     @db.VarChar(255)
-  totalDealValue Decimal    @db.Decimal(10, 2)
-  advanceAmount  Decimal    @db.Decimal(10, 2)
-  monthlyAmount  Decimal    @db.Decimal(10, 2)
-  months         Int
-  cancelRequest String @default("none")
-  rejectionReason String?   @db.Text
-  createdAt      DateTime?  @default(now()) @db.Timestamp(0)
-  status         OrderStatus @default(Pending)
-  tokenNumber    String     @unique @db.VarChar(255)
-  customer       Customers? @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  notifications  Notification[]
-  reviews        Review[]
+  fullName        String      @db.VarChar(100)
+  cnic            String      @db.VarChar(13)
+  city            String      @db.VarChar(100)
+  area            String      @db.VarChar(100)
+  address         String      @db.Text
+  orderNotes      String?     @db.Text
+  paymentMethod   String      @db.VarChar(50)
+  productName     String      @db.VarChar(255)
+  totalDealValue  Decimal     @db.Decimal(10, 2)
+  advanceAmount   Decimal     @db.Decimal(10, 2)
+  monthlyAmount   Decimal     @db.Decimal(10, 2)
+  months          Int
+  cancelRequest   String      @default("none")
+  rejectionReason String?     @db.Text
+  createdAt       DateTime?   @default(now()) @db.Timestamp(0)
+  status          OrderStatus @default(Pending)
+  tokenNumber     String      @unique @db.VarChar(255)
+  referralType    String?     @db.VarChar(100)
+  referralDetails String?     @db.Text
+  customer        Customers?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  notifications   Notification[]
+  reviews         Review[]
   @@index([customerId])
   @@index([email])
   @@index([phone])

@@ -594,6 +594,19 @@ const createOrders = async (req, res) => {
       return res.status(400).json({ error: 'months must be a non-negative integer' });
     }
 
+    let referralType = null;
+    let referralDetails = null;
+    if (data.referralSource && typeof data.referralSource === 'object') {
+      referralType = data.referralSource.type || 'unknown';
+      referralDetails = data.referralSource.details ? JSON.stringify(data.referralSource.details) : null;
+      if (typeof referralType !== 'string' || referralType.length > 100) {
+        return res.status(400).json({ error: 'referralType must be a string with max length 100' });
+      }
+      if (referralDetails && referralDetails.length > 65535) {
+        return res.status(400).json({ error: 'referralDetails exceeds maximum length' });
+      }
+    }
+
     const existingOrder = await prisma.createOrder.findFirst({
       where: {
         phone: data.phone,
@@ -636,10 +649,11 @@ const createOrders = async (req, res) => {
         monthlyAmount: Number(data.monthlyAmount),
         months: Number(data.months),
         tokenNumber,
+        referralType,
+        referralDetails,
       },
     });
 
-    // Create notification for new order
     await prisma.notification.create({
       data: {
         orderId: newOrder.id,
@@ -877,4 +891,18 @@ const getRejectedOrders = async (req, res) => {
   }
 };
 
-module.exports = { createOrders, trackOrder, getOrders, getPendingOrders, getDeliveredOrders, getOrderById, getCancelRequests, approveCancel, getCancelledOrders, updateOrderStatus, getRejectedOrders, requestCancelOrder };
+async function getMyOrders(req, res) {
+  const { customerId } = req.params;
+  const userId = customerId;
+  try {
+    const orders = await prisma.createOrder.findMany({
+      where: { customerId: userId },
+    });
+    res.json(orders);
+  } catch (error) {
+    console.error('Error fetching orders:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+module.exports = { createOrders, trackOrder, getOrders, getPendingOrders, getDeliveredOrders, getOrderById, getCancelRequests, approveCancel, getCancelledOrders, updateOrderStatus, getRejectedOrders, requestCancelOrder, getMyOrders };

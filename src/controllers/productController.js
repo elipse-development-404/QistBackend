@@ -685,10 +685,7 @@ const getProductsByIds = async (req, res) => {
       orderBy: { id: "desc" },
       include: {
         ProductImage: true,
-        ProductInstallments: {
-          where: { isActive: true },
-          orderBy: { id: "desc" },
-        },
+        ProductInstallments: true,
         categories: { select: { id: true, name: true } },
         subcategories: { select: { id: true, name: true } },
       },
@@ -729,10 +726,7 @@ const getProductById = async (req, res) => {
       },
       include: {
         ProductImage: true,
-        ProductInstallments: {
-          where: { isActive: true }, // Include all active installments
-          orderBy: { id: "desc" }, // Sort by ID in descending order
-        },
+        ProductInstallments: true,
         categories: { select: { id: true, name: true } },
         subcategories: { select: { id: true, name: true } },
       },
@@ -807,23 +801,82 @@ const updateProduct = async (req, res) => {
       status,
       is_approved,
       isDeal,
+      price,
     } = req.body;
+
+    const currentProduct = await prisma.product.findUnique({
+      where: { id: parseInt(id) },
+      include: { categories: { select: { name: true } } },
+    });
+
+    if (!currentProduct) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    const data = {
+      category_id: category_id ? parseInt(category_id) : undefined,
+      subcategory_id: subcategory_id ? parseInt(subcategory_id) : undefined,
+      name,
+      short_description,
+      long_description,
+      stock,
+      status,
+      is_approved,
+      isDeal,
+      updatedAt: new Date(),
+    };
+
+    let regenerateInstallments = false;
+
+    if (price !== undefined) {
+      const newPrice = parseFloat(price);
+      if (!isNaN(newPrice) && newPrice !== currentProduct.price) {
+        data.price = newPrice;
+        regenerateInstallments = true;
+      }
+    }
+
+    if (category_id !== undefined && parseInt(category_id) !== currentProduct.category_id) {
+      regenerateInstallments = true;
+    }
 
     const updatedProduct = await prisma.product.update({
       where: { id: parseInt(id) },
-      data: {
-        category_id: category_id ? parseInt(category_id) : undefined,
-        subcategory_id: subcategory_id ? parseInt(subcategory_id) : undefined,
-        name,
-        short_description,
-        long_description,
-        stock,
-        status,
-        is_approved,
-        isDeal,
-        updatedAt: new Date(),
-      },
+      data,
     });
+
+    if (regenerateInstallments) {
+      const categoryName = category_id
+        ? (await prisma.categories.findUnique({ where: { id: parseInt(category_id) }, select: { name: true } }))?.name
+        : currentProduct.categories.name;
+
+      const finalPrice = data.price || currentProduct.price;
+
+      let installments;
+      try {
+        installments = generateInstallments(categoryName, finalPrice);
+      } catch (err) {
+        console.error("Error generating installments:", err);
+        // Optionally handle error, but continue
+      }
+
+      if (installments && installments.length > 0) {
+        await prisma.productInstallments.deleteMany({
+          where: { product_id: parseInt(id) },
+        });
+
+        await prisma.productInstallments.createMany({
+          data: installments.map((ins) => ({
+            product_id: parseInt(id),
+            totalPrice: parseFloat(ins.totalPrice),
+            monthlyAmount: parseFloat(ins.monthlyAmount),
+            advance: parseFloat(ins.advance),
+            months: parseInt(ins.months),
+            isActive: ins.isActive ?? true,
+          })),
+        });
+      }
+    }
 
     res.status(200).json(updatedProduct);
   } catch (error) {
