@@ -26,6 +26,7 @@ const createProduct = async (req, res) => {
       isDeal,
       installments,
       price,
+      tags
     } = formattedData;
 
     // Validate required fields
@@ -93,6 +94,11 @@ const createProduct = async (req, res) => {
             isActive: ins.isActive ?? true,
           })),
         },
+        tags: {
+          create: (tags || []).map(tagId => ({
+            tag: { connect: { id: parseInt(tagId) } }
+          }))
+        }
       },
     });
 
@@ -563,6 +569,11 @@ const getProductByName = async (req, res) => {
         },
         categories: { select: { name: true } },
         subcategories: { select: { name: true, slugName: true } },
+        tags: {
+          include: {
+            tag: true
+          }
+        }
       },
     });
 
@@ -575,6 +586,7 @@ const getProductByName = async (req, res) => {
       category_name: product.categories?.name || null,
       subcategory_name: product.subcategories?.name || null,
       subcategory_slug_name: product.subcategories?.slugName || null,
+      tags: product.tags.map(pt => pt.tag),
       isDeal: product.isDeal,
       categories: undefined,
       subcategories: undefined,
@@ -609,6 +621,16 @@ const getAllProductsPagination = async (req, res) => {
     if (search) {
       const orConditions = [
         { name: { contains: search } },
+        {
+          categories: {
+            name: { contains: search },
+          },
+        },
+        {
+          subcategories: {
+            name: { contains: search },
+          },
+        },
       ];
 
       if (!isNaN(search)) {
@@ -634,6 +656,11 @@ const getAllProductsPagination = async (req, res) => {
         ProductInstallments: true,
         categories: { select: { name: true } },
         subcategories: { select: { name: true } },
+        tags: {
+          include: {
+            tag: true
+          }
+        }
       },
     });
 
@@ -643,6 +670,7 @@ const getAllProductsPagination = async (req, res) => {
       ...p,
       category_name: p.categories?.name || null,
       subcategory_name: p.subcategories?.name || null,
+      tags: p.tags.map(pt => pt.tag),
       isDeal: p.isDeal,
       categories: undefined,
       subcategories: undefined,
@@ -688,6 +716,11 @@ const getProductsByIds = async (req, res) => {
         ProductInstallments: true,
         categories: { select: { id: true, name: true } },
         subcategories: { select: { id: true, name: true } },
+        tags: {
+          include: {
+            tag: true
+          }
+        }
       },
     });
 
@@ -696,6 +729,7 @@ const getProductsByIds = async (req, res) => {
       ...p,
       category_name: p.categories?.name || null,
       subcategory_name: p.subcategories?.name || null,
+      tags: p.tags.map(pt => pt.tag),
       isDeal: p.isDeal,
       categories: undefined,
       subcategories: undefined,
@@ -729,6 +763,11 @@ const getProductById = async (req, res) => {
         ProductInstallments: true,
         categories: { select: { id: true, name: true } },
         subcategories: { select: { id: true, name: true } },
+        tags: {
+          include: {
+            tag: true
+          }
+        }
       },
     });
 
@@ -740,6 +779,7 @@ const getProductById = async (req, res) => {
       ...product,
       category_name: product.categories?.name || null,
       subcategory_name: product.subcategories?.name || null,
+      tags: product.tags.map(pt => pt.tag),
       isDeal: product.isDeal,
       categories: undefined,
       subcategories: undefined,
@@ -802,6 +842,7 @@ const updateProduct = async (req, res) => {
       is_approved,
       isDeal,
       price,
+      tags
     } = req.body;
 
     const currentProduct = await prisma.product.findUnique({
@@ -875,6 +916,24 @@ const updateProduct = async (req, res) => {
             isActive: ins.isActive ?? true,
           })),
         });
+      }
+    }
+
+    // Handle tags if provided
+    if (tags !== undefined) {
+      const originalTagIds = (await prisma.productTag.findMany({
+        where: { productId: parseInt(id) },
+        select: { tagId: true },
+      })).map(pt => pt.tagId).sort((a, b) => a - b);
+      const newTagIds = (tags || []).map(Number).sort((a, b) => a - b);
+
+      if (JSON.stringify(originalTagIds) !== JSON.stringify(newTagIds)) {
+        await prisma.productTag.deleteMany({ where: { productId: parseInt(id) } });
+        if (newTagIds.length > 0) {
+          await prisma.productTag.createMany({
+            data: newTagIds.map(tagId => ({ productId: parseInt(id), tagId }))
+          });
+        }
       }
     }
 
@@ -1431,4 +1490,24 @@ const getProductBySubcategorySlugSimple = async (req, res) => {
   }
 };
 
-module.exports = { createProduct, getAllProducts, getProductByName, toggleProductField, updateProduct, getProductPagination, getProductByCategorySlug, getProductByCategoryAndSubSlug, getLatestProducts, getAllProductsPagination, getProductById, getProductSearch, getProductBySubcategorySlugSimple, bulkCreateProducts, bulkUpdateProducts, bulkDeleteProducts, getProductsByIds }
+const bulkSetTags = async (req, res) => {
+  const { productIds, tagIds } = req.body;
+  try {
+    if (!Array.isArray(productIds) || !Array.isArray(tagIds)) {
+      return res.status(400).json({ message: 'productIds and tagIds must be arrays' });
+    }
+    await prisma.productTag.deleteMany({
+      where: { productId: { in: productIds } }
+    });
+    const data = productIds.flatMap(pid => tagIds.map(tid => ({ productId: pid, tagId: tid })));
+    if (data.length > 0) {
+      await prisma.productTag.createMany({ data });
+    }
+    res.status(200).json({ message: 'Tags set successfully' });
+  } catch (error) {
+    console.error('Error setting bulk tags:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
+module.exports = { createProduct, getAllProducts, getProductByName, toggleProductField, updateProduct, getProductPagination, getProductByCategorySlug, getProductByCategoryAndSubSlug, getLatestProducts, getAllProductsPagination, getProductById, getProductSearch, getProductBySubcategorySlugSimple, bulkCreateProducts, bulkUpdateProducts, bulkDeleteProducts, getProductsByIds, bulkSetTags }

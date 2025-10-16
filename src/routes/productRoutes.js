@@ -1,4 +1,4 @@
-const { createProduct, getAllProducts, getProductByName, toggleProductField, updateProduct, getProductPagination, getProductByCategorySlug, getProductByCategoryAndSubSlug, getLatestProducts, getAllProductsPagination, getProductById, getProductSearch, getProductBySubcategorySlugSimple, bulkCreateProducts, bulkUpdateProducts, bulkDeleteProducts, getProductsByIds } = require('../controllers/productController');
+const { createProduct, getAllProducts, getProductByName, toggleProductField, updateProduct, getProductPagination, getProductByCategorySlug, getProductByCategoryAndSubSlug, getLatestProducts, getAllProductsPagination, getProductById, getProductSearch, getProductBySubcategorySlugSimple, bulkCreateProducts, bulkUpdateProducts, bulkDeleteProducts, getProductsByIds, bulkSetTags } = require('../controllers/productController');
 const upload = require('../middlewares/uploadMiddleware');
 const express = require('express');
 const router = express.Router();
@@ -40,5 +40,7 @@ router.get(
   ],
   getProductsByIds
 );
+
+router.post('/bulk-set-tags', bulkSetTags);
 
 module.exports = router;

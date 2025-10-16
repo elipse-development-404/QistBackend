@@ -133,9 +133,30 @@ model Product {
   ProductInstallments ProductInstallments[]
   ProductDeals        ProductDeal[]
   reviews             Review[]
+  tags                ProductTag[]
   @@unique([name, category_id, subcategory_id])
   @@index([category_id], map: "Product_category_id_fkey")
   @@index([subcategory_id], map: "Product_subcategory_id_fkey")
+}
+
+model Tag {
+  id        Int         @id @default(autoincrement())
+  name      String      @unique
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  products  ProductTag[]
+}
+
+model ProductTag {
+  id        Int     @id @default(autoincrement())
+  productId Int
+  tagId     Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  @@unique([productId, tagId])
+  @@index([productId])
+  @@index([tagId])
 }
 
 model ProductImage {
