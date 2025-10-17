@@ -567,13 +567,26 @@ const getProductByName = async (req, res) => {
         ProductInstallments: {
           where: { isActive: true },
         },
-        categories: { select: { name: true } },
+        categories: { select: { name: true, slugName: true } },
         subcategories: { select: { name: true, slugName: true } },
         tags: {
+          where: {
+            tag: {
+              isActive: true,
+            },
+          },
           include: {
-            tag: true
-          }
-        }
+            tag: true,
+          },
+        },
+        reviews: {
+          where: {
+            status: 'APPROVED',
+          },
+          select: {
+            id: true,
+          },
+        },
       },
     });
 
@@ -584,12 +597,15 @@ const getProductByName = async (req, res) => {
     const response = {
       ...product,
       category_name: product.categories?.name || null,
+      category_slug_name: product.categories?.slugName || null,
       subcategory_name: product.subcategories?.name || null,
       subcategory_slug_name: product.subcategories?.slugName || null,
-      tags: product.tags.map(pt => pt.tag),
+      tags: product.tags.map(pt => pt.tag).filter(tag => tag !== null),
       isDeal: product.isDeal,
+      approved_reviews_count: product.reviews.length,
       categories: undefined,
       subcategories: undefined,
+      reviews: undefined,
     };
 
     res.json(response);
@@ -761,13 +777,26 @@ const getProductById = async (req, res) => {
       include: {
         ProductImage: true,
         ProductInstallments: true,
-        categories: { select: { id: true, name: true } },
-        subcategories: { select: { id: true, name: true } },
+        categories: { select: { id: true, name: true, slugName: true } },
+        subcategories: { select: { id: true, name: true, slugName: true } },
         tags: {
+          where: {
+            tag: {
+              isActive: true,
+            },
+          },
           include: {
-            tag: true
-          }
-        }
+            tag: true,
+          },
+        },
+        reviews: {
+          where: {
+            status: 'APPROVED',
+          },
+          select: {
+            id: true,
+          },
+        },
       },
     });
 
@@ -778,11 +807,15 @@ const getProductById = async (req, res) => {
     const response = {
       ...product,
       category_name: product.categories?.name || null,
+      category_slug_name: product.categories?.slugName || null,
       subcategory_name: product.subcategories?.name || null,
+      subcategory_slug_name: product.subcategories?.slugName || null,
       tags: product.tags.map(pt => pt.tag),
       isDeal: product.isDeal,
+      approved_reviews_count: product.reviews.length,
       categories: undefined,
       subcategories: undefined,
+      reviews: undefined,
     };
 
     res.status(200).json(response);
@@ -1012,8 +1045,8 @@ const getProductByCategorySlug = async (req, res) => {
   const offset = (page - 1) * limit;
 
   try {
-    if (!prisma.categories) {
-      return res.status(500).json({ error: "Server configuration error: categories model not found" });
+    if (!prisma.categories || !prisma.tag) {
+      return res.status(500).json({ error: "Server configuration error: categories or tag model not found" });
     }
 
     const where = {
@@ -1021,19 +1054,42 @@ const getProductByCategorySlug = async (req, res) => {
     };
 
     if (categorySlug) {
+      // First, try to find a category by slugName or name
       const category = await prisma.categories.findFirst({
         where: {
-          name: {
-            contains: String(categorySlug),
-          },
+          OR: [
+            { slugName: { equals: categorySlug } },
+            { name: { equals: categorySlug } },
+          ],
         },
         select: { id: true, name: true },
       });
 
-      if (!category) {
-        return res.status(404).json({ error: "Category not found" });
+      if (category) {
+        // If category is found, filter by category_id
+        where.category_id = category.id;
+      } else {
+        // If no category is found, treat categorySlug as a tag slug
+        const tag = await prisma.tag.findFirst({
+          where: {
+            slugName: { equals: categorySlug },
+            isActive: true,
+          },
+          select: { id: true },
+        });
+
+        if (tag) {
+          where.tags = {
+            some: {
+              tagId: tag.id,
+            },
+          };
+        } else {
+          return res.status(404).json({ error: "Category or tag not found" });
+        }
       }
-      where.category_id = category.id;
+    } else {
+      return res.status(400).json({ error: "Category or tag slug is required" });
     }
 
     if (minPrice !== undefined && maxPrice !== undefined) {
@@ -1062,11 +1118,18 @@ const getProductByCategorySlug = async (req, res) => {
       include: {
         categories: { select: { id: true, name: true } },
         subcategories: { select: { id: true, name: true } },
-        ProductImage: true,
+        ProductImage: {
+          take: 1,
+          orderBy: { id: "asc" },
+        },
         ProductInstallments: {
           where: { isActive: true },
           orderBy: { id: "desc" },
           take: 1,
+        },
+        tags: {
+          where: { tag: { isActive: true } },
+          include: { tag: { select: { id: true, name: true, slugName: true } } },
         },
       },
     });
@@ -1077,6 +1140,7 @@ const getProductByCategorySlug = async (req, res) => {
       subcategory_name: p.subcategories?.name || null,
       advance: p.ProductInstallments[0]?.advance || 0,
       isDeal: p.isDeal,
+      tags: p.tags.map(pt => pt.tag),
     }));
 
     const totalItems = await prisma.product.count({ where });
@@ -1091,7 +1155,7 @@ const getProductByCategorySlug = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching products by category slug:", error);
+    console.error("Error fetching products by category or tag slug:", error);
     res.status(500).json({ error: "Failed to fetch products", details: error.message });
   }
 };

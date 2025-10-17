@@ -3,6 +3,41 @@ const { validationResult } = require("express-validator");
 
 const prisma = new PrismaClient();
 
+// Utility function to generate URL-friendly slug
+const slugify = (text) => {
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .replace(/[^\w\-]+/g, '') // Remove non-word characters
+    .replace(/\-\-+/g, '-') // Replace multiple hyphens with single hyphen
+    .replace(/^-+/, '') // Trim hyphens from start
+    .replace(/-+$/, ''); // Trim hyphens from end
+};
+
+// Utility function to generate unique slug
+const generateUniqueSlug = async (name, model, field = 'slugName', id = null) => {
+  let slug = slugify(name);
+  let uniqueSlug = slug;
+  let counter = 1;
+
+  // Check for existing slugs, excluding the current record if updating
+  while (
+    await prisma[model].findFirst({
+      where: {
+        [field]: uniqueSlug,
+        ...(id && { id: { not: id } }),
+      },
+    })
+  ) {
+    uniqueSlug = `${slug}-${counter}`;
+    counter++;
+  }
+
+  return uniqueSlug;
+};
+
 // Get all tags
 const getTags = async (req, res) => {
   try {
@@ -11,6 +46,14 @@ const getTags = async (req, res) => {
     const tags = await prisma.tag.findMany({
       where,
       orderBy: { id: "asc" },
+      select: {
+        id: true,
+        name: true,
+        slugName: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
     res.status(200).json(tags);
   } catch (error) {
@@ -19,6 +62,7 @@ const getTags = async (req, res) => {
   }
 };
 
+// Get all tags with pagination
 const getAllTagsPagination = async (req, res) => {
   try {
     const { page = 1, limit = 10, search = "", status = "all" } = req.query;
@@ -37,7 +81,15 @@ const getAllTagsPagination = async (req, res) => {
         where,
         skip: Number(skip),
         take: Number(limit),
-        orderBy: { id: "asc" },
+        orderBy: { id: "desc" },
+        select: {
+          id: true,
+          name: true,
+          slugName: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       }),
       prisma.tag.count({ where }),
     ]);
@@ -78,9 +130,13 @@ const createTag = async (req, res) => {
       return res.status(400).json({ message: "Tag name already exists" });
     }
 
+    // Generate unique slug
+    const slugName = await generateUniqueSlug(name.trim(), 'tag');
+
     const tag = await prisma.tag.create({
       data: {
         name: name.trim(),
+        slugName,
         isActive: true,
       },
     });
@@ -117,10 +173,14 @@ const updateTag = async (req, res) => {
       return res.status(400).json({ message: "Tag name already exists" });
     }
 
+    // Generate unique slug
+    const slugName = await generateUniqueSlug(name.trim(), 'tag', 'slugName', parseInt(id));
+
     const tag = await prisma.tag.update({
       where: { id: parseInt(id) },
       data: {
         name: name.trim(),
+        slugName,
         isActive: isActive !== undefined ? Boolean(isActive) : undefined,
         updatedAt: new Date(),
       },
