@@ -26,15 +26,17 @@ const createProduct = async (req, res) => {
       isDeal,
       installments,
       price,
-      tags
+      tags,
+      meta_title,
+      meta_description,
+      meta_keywords,
+      slugName
     } = formattedData;
 
-    // Validate required fields
     if (!name || !category_id || !subcategory_id || !price) {
       return res.status(400).json({ message: "Name, category_id, subcategory_id, and price are required" });
     }
 
-    // Fetch category name for generating installments
     const category = await prisma.categories.findUnique({
       where: { id: parseInt(category_id) },
       select: { name: true },
@@ -44,7 +46,6 @@ const createProduct = async (req, res) => {
       return res.status(404).json({ message: "Category not found" });
     }
 
-    // Use provided installments or generate default ones
     let finalInstallments = installments && installments.length > 0 ? installments : [];
     if (finalInstallments.length === 0) {
       try {
@@ -61,10 +62,14 @@ const createProduct = async (req, res) => {
       cloudinaryId: file.filename,
     })) || [];
 
-    const slug = name
+    const generatedSlug = slugName || name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
+
+    const defaultMetaTitle = meta_title || name.substring(0, 60);
+    const defaultMetaDescription = meta_description || (short_description ? short_description.substring(0, 160) : null); // Max 160 chars
+    const defaultMetaKeywords = meta_keywords || (tags && tags.length > 0 ? tags.join(', ') : null);
 
     const productCreation = await prisma.product.create({
       data: {
@@ -72,7 +77,10 @@ const createProduct = async (req, res) => {
         subcategory_id: parseInt(subcategory_id),
         name,
         price,
-        slugName: slug,
+        slugName: generatedSlug,
+        meta_title: defaultMetaTitle,
+        meta_description: defaultMetaDescription,
+        meta_keywords: defaultMetaKeywords,
         status: status ?? true,
         brand: 'Qist Market',
         short_description: short_description || '',
@@ -83,6 +91,7 @@ const createProduct = async (req, res) => {
         ProductImage: {
           create: uploadedFiles.map((file) => ({
             url: file.filePath,
+            alt_text: defaultMetaTitle,
           })),
         },
         ProductInstallments: {
@@ -257,12 +266,19 @@ const bulkCreateProducts = async (req, res) => {
         continue;
       }
 
-      const slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      const slug = data.slugName || data.name.toLowerCase().replace(/[^a-z0-9\s]+/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '');
+      const metaTitle = data.meta_title || data.name.substring(0, 60);
+      const metaDescription = data.meta_description || (data.short_description ? data.short_description.substring(0, 160) : null);
+      const metaKeywords = data.meta_keywords || (data.tags && data.tags.length > 0 ? data.tags.join(', ') : null);
+
       productsToCreate.push({
         categoryName,
         subcategoryName,
         name: data.name,
         slugName: slug,
+        meta_title: metaTitle,
+        meta_description: metaDescription,
+        meta_keywords: metaKeywords,
         status: data.status ?? true,
         brand: 'Qist Market',
         short_description: data.short_description || '',
@@ -272,6 +288,7 @@ const bulkCreateProducts = async (req, res) => {
         isDeal: data.isDeal ?? false,
         price: price,
         installments,
+        tags: data.tags || [],
       });
     }
 
@@ -330,6 +347,9 @@ const bulkCreateProducts = async (req, res) => {
           subcategory_id: subcategory.id,
           name: product.name,
           slugName: product.slugName,
+          meta_title: product.meta_title,
+          meta_description: product.meta_description,
+          meta_keywords: product.meta_keywords,
           status: product.status,
           brand: product.brand,
           short_description: product.short_description,
@@ -344,9 +364,9 @@ const bulkCreateProducts = async (req, res) => {
         product.installments.forEach(ins => {
           installmentsToCreate.push({
             product_id: null,
-            totalPrice: ins.totalPrice, // Already rounded
-            monthlyAmount: ins.monthlyAmount, // Already rounded
-            advance: ins.advance, // Already rounded
+            totalPrice: ins.totalPrice,
+            monthlyAmount: ins.monthlyAmount,
+            advance: ins.advance,
             months: ins.months,
             isActive: ins.isActive,
             productKey,
@@ -398,6 +418,21 @@ const bulkCreateProducts = async (req, res) => {
           });
         }
 
+        // Create tags for products
+        for (const product of productsToCreate) {
+          const productKey = `${product.name.toLowerCase()}_${categoryMap.get(product.categoryName.toLowerCase()).id}_${subcategoryMap.get(`${categoryMap.get(product.categoryName.toLowerCase()).id}_${product.subcategoryName.toLowerCase()}`).id}`;
+          const productId = productIdMap.get(productKey);
+          if (productId && product.tags.length > 0) {
+            await tx.productTag.createMany({
+              data: product.tags.map(tagId => ({
+                productId: productId,
+                tagId: parseInt(tagId),
+              })),
+              skipDuplicates: true,
+            });
+          }
+        }
+
         results.push(...newProducts);
       }
 
@@ -421,12 +456,18 @@ const bulkUpdateProducts = async (req, res) => {
   const { ids, updates } = req.body;
   try {
     if (updates) {
+      const updateData = {
+        status: updates.status !== undefined ? updates.status : undefined,
+        stock: updates.stock !== undefined ? updates.stock : undefined,
+        meta_title: updates.meta_title !== undefined ? updates.meta_title : undefined,
+        meta_description: updates.meta_description !== undefined ? updates.meta_description : undefined,
+        meta_keywords: updates.meta_keywords !== undefined ? updates.meta_keywords : undefined,
+        slugName: updates.slugName !== undefined ? updates.slugName : undefined,
+      };
+
       await prisma.product.updateMany({
         where: { id: { in: ids } },
-        data: {
-          status: updates.status !== undefined ? updates.status : undefined,
-          stock: updates.stock !== undefined ? updates.stock : undefined,
-        },
+        data: updateData,
       });
     }
 
@@ -860,7 +901,6 @@ const getAllProducts = async (req, res) => {
 };
 
 
-
 const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
@@ -875,7 +915,11 @@ const updateProduct = async (req, res) => {
       is_approved,
       isDeal,
       price,
-      tags
+      tags,
+      meta_title,
+      meta_description,
+      meta_keywords,
+      slugName
     } = req.body;
 
     const currentProduct = await prisma.product.findUnique({
@@ -897,6 +941,10 @@ const updateProduct = async (req, res) => {
       status,
       is_approved,
       isDeal,
+      meta_title,
+      meta_description,
+      meta_keywords,
+      slugName: slugName || (name ? name.toLowerCase().replace(/[^a-z0-9\s]+/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '') : currentProduct.slugName),
       updatedAt: new Date(),
     };
 
@@ -931,7 +979,6 @@ const updateProduct = async (req, res) => {
         installments = generateInstallments(categoryName, finalPrice);
       } catch (err) {
         console.error("Error generating installments:", err);
-        // Optionally handle error, but continue
       }
 
       if (installments && installments.length > 0) {

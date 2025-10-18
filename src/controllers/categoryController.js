@@ -142,21 +142,32 @@ const createCategory = async (req, res) => {
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { name, description, isActive=true,icon  } = req.body;
+  const { name, description, isActive = true, icon } = req.body;
   try {
-
-    const slug=name.toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-') // non-alphanumeric ko - bana do
+    const slug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
+
     const newCategory = await prisma.categories.create({
-      data: { name, description, isActive,icon,slugName:slug
-       
-       },
+      data: {
+        name,
+        description,
+        isActive,
+        icon,
+        slugName: slug || null,
+        meta_title: name || null,
+        meta_description: description || null,
+        meta_keywords: null,
+      },
     });
     res.status(201).json(newCategory);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Failed to create category" });
+    console.error('Error creating category:', error);
+    if (error.code === 'P2002') {
+      return res.status(400).json({ error: 'Category name or slug already exists' });
+    }
+    res.status(500).json({ error: 'Failed to create category' });
   }
 };
 
@@ -166,24 +177,38 @@ const updateCategory = async (req, res) => {
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { name, description,icon } = req.body;
+  const { name, description, icon, meta_title, meta_description, meta_keywords, slugName } = req.body;
   const { id } = req.params;
 
   try {
     const category = await prisma.categories.findUnique({ where: { id: Number(id) } });
     if (!category) {
-      return res.status(404).json({ error: "Category not found" });
+      return res.status(404).json({ error: 'Category not found' });
     }
+
 
     const updated = await prisma.categories.update({
       where: { id: Number(id) },
-      data: { name, description, icon   ,isActive: category.isActive },
+      data: {
+        name,
+        description,
+        icon,
+        slugName: slugName || null,
+        meta_title: meta_title === '' ? null : meta_title,
+        meta_description: meta_description === '' ? null : meta_description,
+        meta_keywords: meta_keywords === '' ? null : meta_keywords,
+        isActive: category.isActive,
+        updated_at: new Date(),
+      },
     });
 
     res.status(200).json(updated);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Failed to update category" });
+    console.error('Error updating category:', error);
+    if (error.code === 'P2002') {
+      return res.status(400).json({ error: 'Category name or slug already exists' });
+    }
+    res.status(500).json({ error: 'Failed to update category' });
   }
 };
 

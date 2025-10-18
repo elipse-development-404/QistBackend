@@ -91,6 +91,9 @@ model categories {
   isActive      Boolean?        @default(true)
   icon          String?         @db.Text
   slugName      String?         @unique
+  meta_title    String?         @db.VarChar(255)
+  meta_description String?      @db.Text
+  meta_keywords String?         @db.Text
   Product       Product[]
   subcategories subcategories[]
   TopCategory   TopCategory[]
@@ -105,6 +108,9 @@ model subcategories {
   isActive    Boolean?   @default(true)
   description String?    @db.Text
   slugName    String?
+  meta_title       String?    @db.VarChar(255)
+  meta_description String?    @db.Text
+  meta_keywords    String?    @db.Text
   Product     Product[]
   categories  categories @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "subcategories_ibfk_1")
   @@unique([category_id, name])
@@ -126,6 +132,9 @@ model Product {
   is_approved         Boolean               @default(false)
   status              Boolean               @default(false)
   slugName            String?               @unique
+  meta_title          String?               @db.VarChar(255)
+  meta_description    String?               @db.Text
+  meta_keywords       String?               @db.Text
   isDeal              Boolean               @default(false)
   categories          categories?           @relation(fields: [category_id], references: [id], onDelete: Cascade)
   subcategories       subcategories?        @relation(fields: [subcategory_id], references: [id], onDelete: Cascade)

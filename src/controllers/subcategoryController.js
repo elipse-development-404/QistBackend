@@ -48,20 +48,18 @@ const getSubcategories = async (req, res) => {
     const subcategories = await prisma.subcategories.findMany({
       where,
       include: {
-        categories:{select:{
-          name:true
-        }}
+        categories: { select: { name: true } },
       },
       orderBy: { [sortField]: order.toLowerCase() === "desc" ? "desc" : "asc" },
       skip,
       take,
     });
 
-    const formatted = subcategories.map(sc => ({
-  ...sc,
-  category_name: sc.categories?.name || null,
-  categories: undefined
-}));
+    const formatted = subcategories.map((sc) => ({
+      ...sc,
+      category_name: sc.categories?.name || null,
+      categories: undefined,
+    }));
 
     const totalItems = await prisma.subcategories.count({ where });
 
@@ -80,25 +78,17 @@ const getSubcategories = async (req, res) => {
   }
 };
 
-
 const getSubcategoriesByCategory = async (req, res) => {
-  
-  const id=req.params.id
-
+  const id = req.params.id;
 
   try {
-    // Filters
-    
     const subcategories = await prisma.subcategories.findMany({
-      where:{category_id:parseInt(id)},
+      where: { category_id: parseInt(id) },
       select: {
-          id:true,
-          name:true
-        
+        id: true,
+        name: true,
       },
     });
-
-    
 
     res.status(200).json(subcategories);
   } catch (error) {
@@ -107,20 +97,16 @@ const getSubcategoriesByCategory = async (req, res) => {
   }
 };
 
-
 const createSubcategory = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
   }
-  
-  const { name, category_id, description, isActive = true } = req.body;
-  
-  const slug=name.toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-') // non-alphanumeric ko - bana do
-      .replace(/^-+|-+$/g, '');
+
+  const { name, category_id, description, isActive = true, meta_title, meta_description, meta_keywords, slugName } = req.body;
+
   try {
-    // Check category exists
+    // Check if category exists
     const category = await prisma.categories.findFirst({
       where: { id: Number(category_id) },
     });
@@ -128,19 +114,30 @@ const createSubcategory = async (req, res) => {
       return res.status(400).json({ error: "Invalid category ID" });
     }
 
+    const slug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
     const subcategory = await prisma.subcategories.create({
       data: {
         name,
-        description,
+        description: description || null,
         isActive,
         categories: { connect: { id: Number(category_id) } },
-        slugName:slug,
+        slugName: slug || null,
+        meta_title: meta_title || null,
+        meta_description: meta_description || null,
+        meta_keywords: meta_keywords || null,
       },
     });
 
     res.status(201).json(subcategory);
   } catch (error) {
-    console.error(error);
+    console.error('Error creating subcategory:', error);
+    if (error.code === 'P2002') {
+      return res.status(400).json({ error: 'Subcategory name or slug already exists for this category' });
+    }
     res.status(500).json({ error: "Failed to create subcategory" });
   }
 };
@@ -152,7 +149,7 @@ const updateSubcategory = async (req, res) => {
   }
 
   const { id } = req.params;
-  const { name, category_id, description } = req.body;
+  const { name, category_id, description, meta_title, meta_description, meta_keywords, slugName } = req.body;
 
   try {
     const subcategory = await prisma.subcategories.findUnique({
@@ -163,18 +160,35 @@ const updateSubcategory = async (req, res) => {
       return res.status(404).json({ error: "Subcategory not found" });
     }
 
+    // Check if category exists
+    const category = await prisma.categories.findFirst({
+      where: { id: Number(category_id) },
+    });
+    if (!category) {
+      return res.status(400).json({ error: "Invalid category ID" });
+    }
+
     const updated = await prisma.subcategories.update({
       where: { id: Number(id) },
       data: {
         name,
-        description,
+        description: description || null,
         categories: { connect: { id: Number(category_id) } },
+        slugName: slugName || null,
+        meta_title: meta_title === '' ? null : meta_title,
+        meta_description: meta_description === '' ? null : meta_description,
+        meta_keywords: meta_keywords === '' ? null : meta_keywords,
+        isActive: subcategory.isActive,
+        updated_at: new Date(),
       },
     });
 
     res.status(200).json(updated);
   } catch (error) {
-    console.error(error);
+    console.error('Error updating subcategory:', error);
+    if (error.code === 'P2002') {
+      return res.status(400).json({ error: 'Subcategory name or slug already exists for this category' });
+    }
     res.status(500).json({ error: "Failed to update subcategory" });
   }
 };
@@ -226,7 +240,7 @@ const getOnlyTrueSubCategories = async (req, res) => {
     res.status(200).json(categories);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Failed to fetch categories" });
+    res.status(500).json({ error: "Failed to fetch subcategories" });
   }
 };
 
@@ -237,5 +251,5 @@ module.exports = {
   deleteSubcategory,
   toggleSubcategoryActive,
   getSubcategoriesByCategory,
-  getOnlyTrueSubCategories
+  getOnlyTrueSubCategories,
 };

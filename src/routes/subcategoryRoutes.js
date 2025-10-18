@@ -12,14 +12,12 @@ const {
   getOnlyTrueSubCategories,
 } = require('../controllers/subcategoryController');
 
-
 router.get('/plain-subcategories/:id', getSubcategoriesByCategory);
 
-router.get('/subcategories/active', getOnlyTrueSubCategories );
+router.get('/subcategories/active', getOnlyTrueSubCategories);
 
 router.get(
   '/subcategories',
-  
   [
     query('page').optional().isInt({ min: 1 }).toInt(),
     query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
@@ -37,8 +35,12 @@ router.post(
   [
     body('name').isString().notEmpty().withMessage('Name is required'),
     body('category_id').isInt().withMessage('Valid category ID is required'),
-    body('description').isString().optional().withMessage('Description must be a string'),
+    body('description').isString().optional().isLength({ max: 255 }).withMessage('Description must not exceed 255 characters'),
     body('isActive').isBoolean().optional().withMessage('isActive must be a boolean'),
+    body('meta_title').isString().optional().isLength({ max: 60 }).withMessage('Meta title must not exceed 60 characters'),
+    body('meta_description').isString().optional().isLength({ max: 160 }).withMessage('Meta description must not exceed 160 characters'),
+    body('meta_keywords').isString().optional(),
+    body('slugName').isString().optional(),
   ],
   createSubcategory
 );
@@ -49,7 +51,11 @@ router.put(
   [
     body('name').isString().notEmpty().withMessage('Name is required'),
     body('category_id').isInt().withMessage('Valid category ID is required'),
-    body('description').isString().optional().withMessage('Description must be a string'),
+    body('description').isString().optional().isLength({ max: 255 }).withMessage('Description must not exceed 255 characters'),
+    body('meta_title').isString().optional().isLength({ max: 60 }).withMessage('Meta title must not exceed 60 characters'),
+    body('meta_description').isString().optional().isLength({ max: 160 }).withMessage('Meta description must not exceed 160 characters'),
+    body('meta_keywords').isString().optional(),
+    body('slugName').isString().optional(),
   ],
   updateSubcategory
 );

@@ -42,6 +42,7 @@ router.post(
     body('name').isString().notEmpty().withMessage('Name is required'),
     body('description').isString().optional(),
     body('isActive').isBoolean().optional().withMessage('isActive must be a boolean'),
+    body('icon').isString().optional(),
   ],
   createCategory
 );
@@ -52,7 +53,10 @@ router.put(
   [
     body('name').isString().notEmpty().withMessage('Name is required'),
     body('description').isString().optional(),
-    body('isActive').isBoolean().optional().withMessage('isActive must be a boolean'),
+    body('icon').isString().optional(),
+    body('meta_title').isString().optional().isLength({ max: 60 }).withMessage('Meta title must not exceed 60 characters'),
+    body('meta_description').isString().optional().isLength({ max: 160 }).withMessage('Meta description must not exceed 160 characters'),
+    body('meta_keywords').isString().optional(),
   ],
   updateCategory
 );
