@@ -813,7 +813,6 @@ const getProductById = async (req, res) => {
     const product = await prisma.product.findUnique({
       where: {
         id: parseInt(id),
-        status: true, // Only fetch product with status: true
       },
       include: {
         ProductImage: true,

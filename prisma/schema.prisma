@@ -492,3 +492,16 @@ model OrganizationSocialLink {
   settings    OrganizationSettings   @relation(fields: [settingsId], references: [id], onDelete: Cascade)
   @@index([settingsId])
 }
+
+model Page {
+  id            Int      @id @default(autoincrement())
+  title         String
+  slug          String   @unique
+  content       String
+  isActive      Boolean  @default(true)
+  metaTitle     String?
+  metaDescription String?
+  metaKeywords  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

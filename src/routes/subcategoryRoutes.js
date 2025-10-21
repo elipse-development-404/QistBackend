@@ -10,6 +10,7 @@ const {
   toggleSubcategoryActive,
   getSubcategoriesByCategory,
   getOnlyTrueSubCategories,
+  getSubcategoryBySlug
 } = require('../controllers/subcategoryController');
 
 router.get('/plain-subcategories/:id', getSubcategoriesByCategory);
@@ -63,5 +64,7 @@ router.put(
 router.patch('/subcategories/:id/toggle', authenticateToken, toggleSubcategoryActive);
 
 router.delete('/subcategories/:id', authenticateToken, deleteSubcategory);
+
+router.get('/subcategories/name/:slugName', getSubcategoryBySlug);
 
 module.exports = router;

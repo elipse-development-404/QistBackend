@@ -13,6 +13,7 @@ const {
   getAllPlainCategory,
   getLimitOnlyTrueCategories,
   getTrueCategories,
+  getCategoryBySlug,
 } = require('../controllers/categoryController');
 
 router.get(
@@ -64,5 +65,7 @@ router.put(
 router.delete('/categories/:id', authenticateToken, deleteCategory);
 
 router.patch('/categories/:id/toggle', authenticateToken, toggleCategoryActive);
+
+router.get('/categories/name/:slugName', getCategoryBySlug);
 
 module.exports = router;

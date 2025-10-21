@@ -14,6 +14,12 @@ const getDateRange = (period, customStart, customEnd) => {
   }
 
   switch (period) {
+    case 'today':
+      startDate = new Date(now);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(now);
+      endDate.setHours(23, 59, 59, 999);
+      break;
     case 'week':
       startDate = new Date(now);
       startDate.setDate(now.getDate() - 7);
@@ -22,24 +28,29 @@ const getDateRange = (period, customStart, customEnd) => {
     case 'month':
       startDate = new Date(now.getFullYear(), now.getMonth(), 1);
       endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      endDate.setHours(23, 59, 59, 999);
       break;
     case 'quarter':
       const quarter = Math.floor(now.getMonth() / 3);
       startDate = new Date(now.getFullYear(), quarter * 3, 1);
       endDate = new Date(now.getFullYear(), (quarter + 1) * 3, 0);
+      endDate.setHours(23, 59, 59, 999);
       break;
     case 'half_year':
       const half = Math.floor(now.getMonth() / 6);
       startDate = new Date(now.getFullYear(), half * 6, 1);
       endDate = new Date(now.getFullYear(), (half + 1) * 6, 0);
+      endDate.setHours(23, 59, 59, 999);
       break;
     case 'year':
       startDate = new Date(now.getFullYear(), 0, 1);
       endDate = new Date(now.getFullYear(), 11, 31);
+      endDate.setHours(23, 59, 59, 999);
       break;
     default: // monthly
       startDate = new Date(now.getFullYear(), now.getMonth(), 1);
       endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      endDate.setHours(23, 59, 59, 999);
   }
 
   return { startDate, endDate };
@@ -49,8 +60,6 @@ const getDateRange = (period, customStart, customEnd) => {
 const buildWhereClause = (filters) => {
   const where = {};
   
-  console.log('🔍 Building where clause with filters:', filters);
-  
   // Basic filters - City and Area
   if (filters.city) where.city = { contains: filters.city };
   if (filters.area) where.area = { contains: filters.area };
@@ -58,7 +67,6 @@ const buildWhereClause = (filters) => {
   
   // Category and subcategory filtering
   if (filters.category) {
-    console.log('🏷️ Filtering by category ID:', filters.category);
     const categoryId = parseInt(filters.category);
     if (!isNaN(categoryId)) {
       where.category_id = categoryId;
@@ -66,29 +74,12 @@ const buildWhereClause = (filters) => {
   }
   
   if (filters.subCategory) {
-    console.log('📋 Filtering by subcategory ID:', filters.subCategory);
     const subcategoryId = parseInt(filters.subCategory);
     if (!isNaN(subcategoryId)) {
       where.subcategory_id = subcategoryId;
     }
   }
   
-  // Price range
-  if (filters.minPrice || filters.maxPrice) {
-    where.AND = where.AND || [];
-    const priceCondition = {};
-    if (filters.minPrice) priceCondition.gte = parseFloat(filters.minPrice);
-    if (filters.maxPrice) priceCondition.lte = parseFloat(filters.maxPrice);
-    
-    where.AND.push({
-      OR: [
-        { totalDealValue: priceCondition },
-        { advanceAmount: priceCondition }
-      ]
-    });
-  }
-
-  console.log('✅ Final where clause:', JSON.stringify(where, null, 2));
   return where;
 };
 
@@ -103,17 +94,12 @@ const getDashboardMetrics = async (req, res) => {
       area,
       category,
       sub_category,
-      item,
-      min_price,
-      max_price
+      item
     } = req.query;
 
     const filters = {
-      city, area, category, subCategory: sub_category, item,
-      minPrice: min_price, maxPrice: max_price
+      city, area, category, subCategory: sub_category, item
     };
-
-    console.log('🎯 Received filters for metrics:', filters);
 
     const { startDate, endDate } = getDateRange(period, from_date, to_date);
     
@@ -124,7 +110,6 @@ const getDashboardMetrics = async (req, res) => {
     };
 
     const totalOrders = await prisma.createOrder.count({ where: whereClause });
-    console.log('📊 Total orders for metrics:', totalOrders, JSON.stringify(whereClause, null, 2));
 
     const [
       activeCustomersCount,
@@ -171,14 +156,6 @@ const getDashboardMetrics = async (req, res) => {
       totalAdvanceRevenue: totalAdvanceRevenueResult._sum.advanceAmount || 0,
       dateRange: { start: startDate, end: endDate, period }
     };
-
-    console.log('📈 Metrics result:', {
-      category: filters.category,
-      subCategory: filters.subCategory,
-      totalSales: metrics.totalSalesCount,
-      totalRevenue: metrics.totalDealRevenue,
-      deliveredOrders: metrics.deliveredOrdersCount
-    });
     
     res.json(metrics);
   } catch (error) {
@@ -201,17 +178,12 @@ const getOrderTrends = async (req, res) => {
       area,
       category,
       sub_category,
-      item,
-      min_price,
-      max_price
+      item
     } = req.query;
 
     const filters = {
-      city, area, category, subCategory: sub_category, item,
-      minPrice: min_price, maxPrice: max_price
+      city, area, category, subCategory: sub_category, item
     };
-
-    console.log('🎯 Received filters for trends:', filters);
 
     const { startDate, endDate } = getDateRange(period, from_date, to_date);
     
@@ -220,21 +192,29 @@ const getOrderTrends = async (req, res) => {
     baseWhereClause.status = { in: ['Pending', 'Confirmed', 'Shipped', 'Delivered'] };
 
     const totalOrders = await prisma.createOrder.count({ where: baseWhereClause });
-    console.log('📊 Total orders for trends:', totalOrders, JSON.stringify(baseWhereClause, null, 2));
 
     const intervals = [];
     let current = new Date(startDate);
     
+    // Adjust intervals based on period
     while (current < endDate) {
       let end = new Date(current);
-      if (period === 'weekly') {
-        end.setDate(current.getDate() + 7);
-      } else if (period === 'daily') {
+      
+      if (period === 'today') {
+        // For today, show hourly intervals
+        end.setHours(current.getHours() + 1);
+      } else if (period === 'week' || from_date) {
+        // For week or custom dates, show daily intervals
+        end.setDate(current.getDate() + 1);
+      } else if (period === 'month') {
+        // For month, show daily intervals
         end.setDate(current.getDate() + 1);
       } else {
+        // For longer periods, show monthly intervals
         end.setMonth(current.getMonth() + 1);
       }
-      if (end > endDate) end = endDate;
+      
+      if (end > endDate) end = new Date(endDate);
       intervals.push({ start: new Date(current), end });
       current = end;
     }
@@ -254,29 +234,44 @@ const getOrderTrends = async (req, res) => {
         });
 
         let label;
-        if (period === 'daily') {
+        if (period === 'today') {
+          label = interval.start.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        } else if (period === 'week' || from_date) {
           label = interval.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        } else if (period === 'weekly') {
-          label = `Week of ${interval.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+        } else if (period === 'month') {
+          label = interval.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         } else {
           label = interval.start.toLocaleString('default', { month: 'short', year: 'numeric' });
         }
 
         const byStatus = {};
+        let totalRevenue = 0;
+        let totalAdvance = 0;
+
         orders.forEach(item => {
           byStatus[item.status] = {
             count: item._count.id,
             revenue: Number(item._sum.totalDealValue) || 0,
             advance: Number(item._sum.advanceAmount) || 0
           };
+          
+          // Only count revenue for delivered orders
+          if (item.status === 'Delivered') {
+            totalRevenue += Number(item._sum.totalDealValue) || 0;
+          }
+          
+          // Advance collected for all active orders
+          if (item.status !== 'Cancelled' && item.status !== 'Rejected') {
+            totalAdvance += Number(item._sum.advanceAmount) || 0;
+          }
         });
 
         return {
           label,
           interval: { start: interval.start, end: interval.end },
           total: orders.reduce((sum, item) => sum + item._count.id, 0),
-          totalRevenue: orders.reduce((sum, item) => sum + (Number(item._sum.totalDealValue) || 0), 0),
-          totalAdvance: orders.reduce((sum, item) => sum + (Number(item._sum.advanceAmount) || 0), 0),
+          totalRevenue,
+          totalAdvance,
           byStatus
         };
       })
@@ -348,13 +343,6 @@ const getOrderTrends = async (req, res) => {
       }
     ];
 
-    console.log('📈 Order trends summary:', {
-      category: filters.category,
-      subCategory: filters.subCategory,
-      totalOrders: trendsData.reduce((sum, item) => sum + item.total, 0),
-      totalRevenue: trendsData.reduce((sum, item) => sum + (item.totalRevenue || 0), 0)
-    });
-
     res.json({
       orderTrends: { labels, datasets },
       revenueTrends: { labels, datasets: revenueDatasets },
@@ -376,19 +364,32 @@ const getOrderTrends = async (req, res) => {
 // Analytics by dimension
 const getAnalyticsByDimension = async (req, res) => {
   try {
-    const { dimension = 'city', period = 'month', from_date, to_date } = req.query;
-    
+    const { 
+      dimension = 'city', 
+      period = 'month', 
+      from_date, 
+      to_date,
+      city,
+      area,
+      category,
+      sub_category,
+      item
+    } = req.query;
+
+    const filters = {
+      city, area, category, subCategory: sub_category, item
+    };
+
     const { startDate, endDate } = getDateRange(period, from_date, to_date);
     
-    const orders = await prisma.createOrder.findMany({
-      where: {
-        createdAt: { gte: startDate, lt: endDate },
-        status: { notIn: ['Cancelled', 'Rejected'] }
-      },
-      take: 1000 // Limit for performance
-    });
+    const baseWhereClause = buildWhereClause(filters);
+    baseWhereClause.createdAt = { gte: startDate, lt: endDate };
+    baseWhereClause.status = { notIn: ['Cancelled', 'Rejected'] };
 
-    console.log('📊 Total orders for analytics:', orders.length);
+    const orders = await prisma.createOrder.findMany({
+      where: baseWhereClause,
+      take: 1000
+    });
 
     const [allCategories, allSubcategories] = await Promise.all([
       prisma.categories.findMany({ select: { id: true, name: true } }),
@@ -428,7 +429,13 @@ const getAnalyticsByDimension = async (req, res) => {
       }
 
       groupedData[key].orderCount++;
-      groupedData[key].totalRevenue += Number(order.totalDealValue) || 0;
+      
+      // Revenue only from delivered orders
+      if (order.status === 'Delivered') {
+        groupedData[key].totalRevenue += Number(order.totalDealValue) || 0;
+      }
+      
+      // Advance collected from all active orders
       groupedData[key].advanceCollected += Number(order.advanceAmount) || 0;
     });
 
@@ -501,6 +508,7 @@ const getFilterOptions = async (req, res) => {
     });
   }
 };
+
 
 module.exports = {
   getDashboardMetrics,

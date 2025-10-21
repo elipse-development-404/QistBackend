@@ -244,7 +244,31 @@ const toggleCategoryActive = async (req, res) => {
   }
 };
 
+const getCategoryBySlug = async (req, res) => {
+  const { slugName } = req.params;
+  try {
+    const category = await prisma.categories.findUnique({
+      where: { slugName },
+      select: {
+        id: true,
+        name: true,
+        meta_title: true,
+        meta_description: true,
+        meta_keywords: true,
+        icon: true,
+      },
+    });
 
+    if (!category) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+
+    res.status(200).json(category);
+  } catch (error) {
+    console.error('Error fetching category by slug:', error);
+    res.status(500).json({ error: 'Failed to fetch category' });
+  }
+};
 
 module.exports = {
   getCategories,
@@ -255,5 +279,6 @@ module.exports = {
   toggleCategoryActive,
   getAllPlainCategory,
   getLimitOnlyTrueCategories,
-  getTrueCategories
+  getTrueCategories,
+  getCategoryBySlug,
 };

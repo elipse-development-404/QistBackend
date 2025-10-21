@@ -244,6 +244,51 @@ const getOnlyTrueSubCategories = async (req, res) => {
   }
 };
 
+const getSubcategoryBySlug = async (req, res) => {
+  const { slugName } = req.params;
+  const { categorySlug } = req.query;
+
+  try {
+    const where = { slugName };
+    if (categorySlug) {
+      where.categories = { slugName: categorySlug };
+    }
+
+    const subcategory = await prisma.subcategories.findFirst({
+      where,
+      select: {
+        id: true,
+        name: true,
+        meta_title: true,
+        meta_description: true,
+        meta_keywords: true,
+        categories: {
+          select: {
+            name: true,
+            slugName: true,
+          },
+        },
+      },
+    });
+
+    if (!subcategory) {
+      return res.status(404).json({ error: 'Subcategory not found' });
+    }
+
+    res.status(200).json({
+      id: subcategory.id,
+      name: subcategory.name,
+      meta_title: subcategory.meta_title,
+      meta_description: subcategory.meta_description,
+      meta_keywords: subcategory.meta_keywords,
+      category_name: subcategory.categories?.name || null,
+    });
+  } catch (error) {
+    console.error('Error fetching subcategory by slug:', error);
+    res.status(500).json({ error: 'Failed to fetch subcategory' });
+  }
+};
+
 module.exports = {
   getSubcategories,
   createSubcategory,
@@ -252,4 +297,5 @@ module.exports = {
   toggleSubcategoryActive,
   getSubcategoriesByCategory,
   getOnlyTrueSubCategories,
+  getSubcategoryBySlug,
 };

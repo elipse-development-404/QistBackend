@@ -29,6 +29,7 @@ const notificationRoutes = require('./src/routes/notificationRoutes');
 const rolesRoutes = require('./src/routes/rolesRoutes');
 const reviewRoutes = require('./src/routes/reviewRoutes');
 const tagRoutes = require('./src/routes/tagRoutes');
+const pageRoutes = require('./src/routes/pageRoutes');
 require('dotenv').config();
 
 const app = express();
@@ -70,6 +71,7 @@ app.use('/api', notificationRoutes);
 app.use('/api', rolesRoutes);
 app.use('/api', reviewRoutes);
 app.use('/api', tagRoutes);
+app.use('/api', pageRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
