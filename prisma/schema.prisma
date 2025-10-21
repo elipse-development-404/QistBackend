@@ -273,6 +273,8 @@ model CreateOrder {
   tokenNumber     String      @unique @db.VarChar(255)
   referralType    String?     @db.VarChar(100)
   referralDetails String?     @db.Text
+  category_id     Int?
+  subcategory_id  Int?
   customer        Customers?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
   notifications   Notification[]
   reviews         Review[]
@@ -281,6 +283,8 @@ model CreateOrder {
   @@index([phone])
   @@index([cnic])
   @@index([tokenNumber])
+  @@index([category_id])
+  @@index([subcategory_id])
 }
 
 enum OrderStatus {

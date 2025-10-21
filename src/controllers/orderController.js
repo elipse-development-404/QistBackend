@@ -594,6 +594,16 @@ const createOrders = async (req, res) => {
       return res.status(400).json({ error: 'months must be a non-negative integer' });
     }
 
+    // Look up the product to get category_id and subcategory_id
+    const product = await prisma.product.findFirst({
+      where: { name: data.productName },
+      select: { id: true, category_id: true, subcategory_id: true },
+    });
+
+    if (!product) {
+      return res.status(400).json({ error: `Product "${data.productName}" not found` });
+    }
+
     let referralType = null;
     let referralDetails = null;
     if (data.referralSource && typeof data.referralSource === 'object') {
@@ -651,6 +661,8 @@ const createOrders = async (req, res) => {
         tokenNumber,
         referralType,
         referralDetails,
+        category_id: product.category_id,
+        subcategory_id: product.subcategory_id,
       },
     });
 
