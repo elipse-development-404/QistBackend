@@ -292,7 +292,7 @@ const getActiveTopCategories = async (req, res) => {
                   take: 1,
                 },
                 subcategories: {
-                  select: { id: true, name: true },
+                  select: { id: true, name: true, slugName: true },
                 },
               },
             },
@@ -310,7 +310,9 @@ const getActiveTopCategories = async (req, res) => {
         name: p.name,
         slugName: p.slugName,
         category_name: tc.categories?.name || null,
+        categories_SlugName: tc.categories?.slugName || null,
         subcategory_name: p.subcategories?.name || null,
+        subcategory_SlugName: p.subcategories?.slugName || null,
         advance: p.ProductInstallments[0]?.advance || 0, // Fixed typo from '进' to 'advance'
         image_url: p.ProductImage[0]?.url || null,
         isDeal: p.isDeal,

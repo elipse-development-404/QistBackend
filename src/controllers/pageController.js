@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 // Create or Update Page
 const upsertPage = async (req, res) => {
   try {
-    const { title, content, isActive, metaTitle, metaDescription, metaKeywords, slug } = req.body;
+    const { title, content, slug, isActive, metaTitle, metaDescription, metaKeywords, category, organizationId } = req.body;
 
     if (!title || !content || !slug) {
       return res.status(400).json({ error: 'Title, content, and slug are required' });
@@ -24,6 +24,8 @@ const upsertPage = async (req, res) => {
           metaTitle: metaTitle || existingPage.metaTitle || title,
           metaDescription: metaDescription || existingPage.metaDescription || `Description for ${title}`,
           metaKeywords: metaKeywords || existingPage.metaKeywords || title.toLowerCase().replace(/\s/g, ', '),
+          category: category || existingPage.category || 'OTHER',
+          organizationId: organizationId !== undefined ? Number(organizationId) : existingPage.organizationId,
           updatedAt: new Date(),
         },
       });
@@ -38,6 +40,8 @@ const upsertPage = async (req, res) => {
           metaTitle: metaTitle || title,
           metaDescription: metaDescription || `Description for ${title}`,
           metaKeywords: metaKeywords || title.toLowerCase().replace(/\s/g, ', '),
+          category: category || 'OTHER',
+          organizationId: organizationId !== undefined ? Number(organizationId) : null,
         },
       });
       res.status(201).json({ message: 'Page created successfully', page });
@@ -50,7 +54,13 @@ const upsertPage = async (req, res) => {
 // Get All Pages (for admin)
 const getPages = async (req, res) => {
   try {
-    const pages = await prisma.page.findMany();
+    const pages = await prisma.page.findMany({
+      include: {
+        organization: {
+          select: { id: true, name: true },
+        },
+      },
+    });
     res.status(200).json(pages);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch pages', details: error.message });
@@ -87,5 +97,6 @@ const deletePage = async (req, res) => {
     res.status(500).json({ error: 'Failed to delete page', details: error.message });
   }
 };
+
 
 module.exports = { upsertPage, getPages, getPageBySlug, deletePage };

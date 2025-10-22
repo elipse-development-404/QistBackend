@@ -557,8 +557,8 @@ const getProductPagination = async (req, res) => {
       take: Number(limit),
       orderBy: { [sortField]: sortOrder },
       include: {
-        categories: { select: { id: true, name: true } },
-        subcategories: { select: { id: true, name: true } },
+        categories: { select: { id: true, name: true, slugName: true } },
+        subcategories: { select: { id: true, name: true, slugName: true } },
         ProductImage: true,
         ProductInstallments: {
           where: { isActive: true },
@@ -571,7 +571,9 @@ const getProductPagination = async (req, res) => {
     const response = products.map((p) => ({
       ...p,
       category_name: p.categories?.name,
+      categories_SlugName: p.categories?.slugName,
       subcategory_name: p.subcategories?.name,
+      subcategory_SlugName: p.subcategories?.slugName,
       advance: p.ProductInstallments[0]?.advance || 0,
       isDeal: p.isDeal,
     }));
@@ -771,8 +773,8 @@ const getProductsByIds = async (req, res) => {
       include: {
         ProductImage: true,
         ProductInstallments: true,
-        categories: { select: { id: true, name: true } },
-        subcategories: { select: { id: true, name: true } },
+        categories: { select: { id: true, name: true, slugName: true } },
+        subcategories: { select: { id: true, name: true, slugName: true } },
         tags: {
           include: {
             tag: true
@@ -785,7 +787,9 @@ const getProductsByIds = async (req, res) => {
     const response = products.map(p => ({
       ...p,
       category_name: p.categories?.name || null,
+      categories_SlugName: p.categories?.slugName || null,
       subcategory_name: p.subcategories?.name || null,
+      subcategory_SlugName: p.subcategories?.slugName || null,
       tags: p.tags.map(pt => pt.tag),
       isDeal: p.isDeal,
       categories: undefined,
@@ -1162,8 +1166,8 @@ const getProductByCategorySlug = async (req, res) => {
       take: Number(limit),
       orderBy: { [sortField]: sortOrder },
       include: {
-        categories: { select: { id: true, name: true } },
-        subcategories: { select: { id: true, name: true } },
+        categories: { select: { id: true, name: true, slugName: true } },
+        subcategories: { select: { id: true, name: true, slugName: true } },
         ProductImage: {
           take: 1,
           orderBy: { id: "asc" },
@@ -1183,7 +1187,9 @@ const getProductByCategorySlug = async (req, res) => {
     const response = products.map((p) => ({
       ...p,
       category_name: p.categories?.name || null,
+      categories_SlugName: p.categories?.slugName || null,
       subcategory_name: p.subcategories?.name || null,
+      subcategory_SlugName: p.subcategories?.slugName || null,
       advance: p.ProductInstallments[0]?.advance || 0,
       isDeal: p.isDeal,
       tags: p.tags.map(pt => pt.tag),
@@ -1295,8 +1301,8 @@ const getProductByCategoryAndSubSlug = async (req, res) => {
       take: Number(limit),
       orderBy: { [sortField]: sortOrder },
       include: {
-        categories: { select: { id: true, name: true } },
-        subcategories: { select: { id: true, name: true } },
+        categories: { select: { id: true, name: true, slugName: true } },
+        subcategories: { select: { id: true, name: true, slugName: true } },
         ProductImage: true,
         ProductInstallments: {
           where: { isActive: true },
@@ -1311,7 +1317,9 @@ const getProductByCategoryAndSubSlug = async (req, res) => {
     const response = products.map((p) => ({
       ...p,
       category_name: p.categories?.name || null,
+      categories_SlugName: p.categories?.slugName || null,
       subcategory_name: p.subcategories?.name || null,
+      subcategory_SlugName: p.subcategories?.slugName || null,
       advance: p.ProductInstallments[0]?.advance || 0,
       isDeal: p.isDeal,
     }));
@@ -1351,8 +1359,8 @@ const getLatestProducts = async (req, res) => {
           orderBy: { id: "desc" },
           take: 1,
         },
-        categories: { select: { name: true } },
-        subcategories: { select: { name: true } },
+        categories: { select: { name: true, slugName: true } },
+        subcategories: { select: { name: true, slugName: true } },
       },
     });
 
@@ -1361,7 +1369,9 @@ const getLatestProducts = async (req, res) => {
       name: p.name,
       slugName: p.slugName,
       category_name: p.categories?.name || null,
+      categories_SlugName: p.categories?.slugName || null,
       subcategory_name: p.subcategories?.name || null,
+      subcategory_SlugName: p.subcategories?.slugName || null,
       advance: p.ProductInstallments[0]?.advance || 0,
       image_url: p.ProductImage[0]?.url || null,
       ProductInstallments: p.ProductInstallments,
@@ -1481,8 +1491,8 @@ const getProductSearch = async (req, res) => {
       take: Number(limit),
       orderBy: { [sortField]: sortOrder },
       include: {
-        categories: { select: { id: true, name: true } },
-        subcategories: { select: { id: true, name: true } },
+        categories: { select: { id: true, name: true, slugName: true } },
+        subcategories: { select: { id: true, name: true, slugName: true } },
         ProductImage: {
           take: 1, // Limit to one image per product
           orderBy: { id: "asc" },
@@ -1501,7 +1511,9 @@ const getProductSearch = async (req, res) => {
       name: p.name,
       slugName: p.slugName,
       category_name: p.categories?.name || null,
+      categories_SlugName: p.categories?.slugName || null,
       subcategory_name: p.subcategories?.name || null,
+      subcategory_SlugName: p.subcategories?.slugName || null,
       advance: p.ProductInstallments[0]?.advance || 0,
       image_url: p.ProductImage[0]?.url || null,
       short_description: p.short_description,
@@ -1567,8 +1579,8 @@ const getProductBySubcategorySlugSimple = async (req, res) => {
       take: 20,
       orderBy: { id: "desc" },
       include: {
-        categories: { select: { id: true, name: true } },
-        subcategories: { select: { id: true, name: true } },
+        categories: { select: { id: true, name: true, slugName: true } },
+        subcategories: { select: { id: true, name: true, slugName: true } },
         ProductImage: {
           take: 1, // Limit to one image per product
           orderBy: { id: "asc" },
@@ -1587,7 +1599,9 @@ const getProductBySubcategorySlugSimple = async (req, res) => {
       name: p.name,
       slugName: p.slugName,
       category_name: p.categories?.name || null,
+      categories_SlugName: p.categories?.slugName || null,
       subcategory_name: p.subcategories?.name || null,
+      subcategory_SlugName: p.subcategories?.slugName || null,
       advance: p.ProductInstallments[0]?.advance || 0,
       image_url: p.ProductImage[0]?.url || null,
       isDeal: p.isDeal,

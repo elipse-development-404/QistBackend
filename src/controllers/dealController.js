@@ -144,8 +144,8 @@ const getAllDeals = async (req, res) => {
             Product: {
               include: {
                 ProductImage: { take: 1, orderBy: { id: 'asc' } },
-                categories: { select: { name: true } },
-                subcategories: { select: { name: true } },
+                categories: { select: { name: true, slugName: true } },
+                subcategories: { select: { name: true, slugName: true } },
               },
             },
             DealInstallments: { where: { isActive: true } },
@@ -160,7 +160,9 @@ const getAllDeals = async (req, res) => {
         product_name: pd.Product?.name || null,
         slugName: pd.Product?.slugName || null,
         category_name: pd.Product?.categories?.name || null,
+        categories_SlugName: pd.Product?.categories?.slugName || null,
         subcategory_name: pd.Product?.subcategories?.name || null,
+        subcategory_SlugName: pd.Product?.subcategories?.slugName || null,
         image_url: pd.Product?.ProductImage[0]?.url || null,
         installments: pd.DealInstallments,
       })),

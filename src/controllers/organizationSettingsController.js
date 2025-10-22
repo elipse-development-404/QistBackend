@@ -10,10 +10,6 @@ const getOrganizationSettings = async (req, res) => {
       include: { socialLinks: true },
     });
 
-    if (!item) {
-      return res.status(404).json({ error: 'Organization settings not found' });
-    }
-
     res.status(200).json(item);
   } catch (error) {
     console.error(error);

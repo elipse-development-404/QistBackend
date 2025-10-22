@@ -467,6 +467,30 @@ model AgreementImage {
   @@index([agreementId])
 }
 
+enum PageCategory {
+  ABOUT
+  INFORMATION
+  QUICK_LINKS
+  OTHER
+}
+
+model Page {
+  id              Int               @id @default(autoincrement())
+  title           String            @db.VarChar(255)
+  slug            String            @unique
+  content         String            @db.Text
+  isActive        Boolean           @default(true)
+  metaTitle       String?           @db.VarChar(255)
+  metaDescription String?           @db.Text
+  metaKeywords    String?           @db.Text
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  category        PageCategory      @default(OTHER) // New field for categorizing pages
+  organizationId  Int?              // Optional foreign key to OrganizationSettings
+  organization    OrganizationSettings? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  @@index([organizationId])
+}
+
 model OrganizationSettings {
   id            Int                       @id @default(autoincrement())
   name          String                    @db.VarChar(255)
@@ -480,6 +504,7 @@ model OrganizationSettings {
   createdAt     DateTime                  @default(now())
   updatedAt     DateTime                  @updatedAt
   socialLinks   OrganizationSocialLink[]
+  pages         Page[]
 }
 
 model OrganizationSocialLink {
@@ -491,17 +516,4 @@ model OrganizationSocialLink {
   updatedAt   DateTime               @updatedAt
   settings    OrganizationSettings   @relation(fields: [settingsId], references: [id], onDelete: Cascade)
   @@index([settingsId])
-}
-
-model Page {
-  id            Int      @id @default(autoincrement())
-  title         String
-  slug          String   @unique
-  content       String
-  isActive      Boolean  @default(true)
-  metaTitle     String?
-  metaDescription String?
-  metaKeywords  String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
 }
