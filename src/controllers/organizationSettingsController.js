@@ -205,7 +205,17 @@ const getActiveOrganizationSettings = async (req, res) => {
   try {
     const item = await prisma.organizationSettings.findFirst({
       where: { isActive: true },
-      include: { socialLinks: true },
+      include: {
+        socialLinks: true,
+        pages: {
+          where: { isActive: true },
+          select: {
+            category: true,
+            slug: true,
+            title: true,
+          },
+        },
+      },
     });
 
     if (!item) {
